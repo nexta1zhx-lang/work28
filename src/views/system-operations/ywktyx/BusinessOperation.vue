@@ -639,9 +639,20 @@ export default {
         action.then(res => {
           this.$message.success('节点数据同步就绪')
           this.dialogNodeVisible = false
-          // 新增节点后端未返回 businessNodeId，重新拉取全量拓扑数据刷新画布
           if (!isUpdateAction) {
+            // 新增节点后端未返回 businessNodeId，重新拉取全量拓扑数据刷新画布
             this.loadTopologyData()
+          } else if (this.currentNodeCell) {
+            // 更新（改名）成功后，及时同步画布节点标签与内置数据
+            this.currentNodeCell.setLabel(this.formNode.nodeName)
+            const prevData = this.currentNodeCell.getData() || {}
+            this.currentNodeCell.setData({
+              ...prevData,
+              nodeName: this.formNode.nodeName,
+              nodeType: this.formNode.nodeType,
+              serviceTemplateId: this.formNode.serviceTemplateId,
+              nodeMemo: this.formNode.nodeMemo
+            })
           }
         })
       })

@@ -334,6 +334,20 @@ const staticRoutes = [
       requiresAuth: true
     }
   },
+  {
+    path: '/network-situation',
+    name: 'NetworkSituation',
+    component: () =>
+      import('@/views/system-operations/yktsjs/NetworkSituation.vue'),
+    meta: {
+      title: '网络态势监控',
+      subsystem: '体系运营管理',
+      category: '运控态势监视',
+      icon: 'lucide:radar',
+      parentModule: '运控态势监视',
+      requiresAuth: true
+    }
+  },
 
   // 系统运维
   {

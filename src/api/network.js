@@ -13,6 +13,17 @@ export function wlzt(data) {
     data
   })
 }
+/**
+ * 查询指定网络(wlh)的网络拓扑数据
+ * GET /rest/wlzt/{wlh}
+ * @param {number} wlh - 网络号
+ */
+export function wlztTopology(wlh) {
+  return request({
+    url: `rest/wlzt/${wlh}`,
+    method: 'get'
+  })
+}
 export function xxlltj(data) {
   return request({
     url: `rest/xxlltj/page`,
