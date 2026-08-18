@@ -69,27 +69,21 @@
           <div class="inner-filter-bar grid-2 custom-el-form">
             <el-input
               v-model="taskQueryParams.QZMC"
-              @input="fetchTaskGroupPage"
+              @input="handleTaskQuery"
               placeholder="输入群组名称检索..."
               size="mini"
               clearable
             />
             <el-input
               v-model="taskQueryParams.RWMC"
-              @input="fetchTaskGroupPage"
+              @input="handleTaskQuery"
               placeholder="输入任务名称检索..."
               size="mini"
               clearable
             />
           </div>
 
-          <div
-            class="scroll-wrapper task-grid"
-            v-loading="loadingTask"
-            v-infinite-scroll="loadMoreTaskGroups"
-            :infinite-scroll-disabled="taskScrollDisabled"
-            :infinite-scroll-distance="10"
-          >
+          <div class="scroll-wrapper task-grid" v-loading="loadingTask">
             <div v-if="taskGroupList.length === 0" class="empty-holder">
               当前无在网执行的作战群组任务
             </div>
@@ -245,6 +239,17 @@
               </div>
             </div>
           </div>
+
+          <div class="task-pagination-bar">
+            <el-pagination
+              background
+              layout="total, prev, pager, next"
+              :total="taskTotal"
+              :page-size="pageConfig.pageSize"
+              :current-page="taskPageNum"
+              @current-change="handleTaskPageChange"
+            />
+          </div>
         </div>
       </div>
 
@@ -371,7 +376,6 @@ export default {
       eventDrawerVisible: false,
       loadingTask: false,
       loadingService: false,
-      globalPollingTimer: null,
 
       taskGroupList: [],
       serviceList: [],
@@ -387,27 +391,17 @@ export default {
 
       pageConfig: {pageNum: 1, pageSize: 20},
       taskPageNum: 1,
-      taskHasMore: true,
-      taskLoadingMore: false,
+      taskTotal: 0,
 
       chartIns: null,
       platformVisibleLimit: 8
     }
   },
-  computed: {
-    taskScrollDisabled() {
-      return !this.taskHasMore || this.taskLoadingMore || this.loadingTask
-    }
-  },
   created() {
     this.initialMasterWorkflow()
-    this.globalPollingTimer = setInterval(() => {
-      this.executeSilentSyncWorkflow()
-    }, 15000)
   },
   mounted() {},
   beforeDestroy() {
-    if (this.globalPollingTimer) clearInterval(this.globalPollingTimer)
     if (this.chartIns) this.chartIns.dispose()
   },
   methods: {
@@ -421,14 +415,11 @@ export default {
       this.loadingService = false
     },
 
-    async fetchTaskGroupPage(append = false) {
-      if (!append) {
-        this.taskPageNum = 1
-        this.taskHasMore = true
-      }
+    async fetchTaskGroupPage(page = 1) {
+      this.taskPageNum = page
       try {
         const payload = {
-          pageNum: append ? this.taskPageNum : 1,
+          pageNum: page,
           pageSize: this.pageConfig.pageSize,
           params: {
             QZMC: this.taskQueryParams.QZMC || undefined,
@@ -439,17 +430,8 @@ export default {
         const rows = res?.rows || res?.data?.list || []
         const total = res?.total || res?.data?.total || 0
 
-        if (rows.length === 0 || rows.length < this.pageConfig.pageSize) {
-          this.taskHasMore = false
-        }
-
-        if (append) {
-          this.taskGroupList = [...this.taskGroupList, ...rows]
-          this.taskPageNum++
-        } else {
-          this.taskGroupList = rows.length > 0 ? rows : []
-          if (rows.length > 0) this.taskPageNum = 2
-        }
+        this.taskGroupList = rows.length > 0 ? rows : []
+        this.taskTotal = total
 
         this.calculateGlobalStats(total)
       } catch (e) {
@@ -457,12 +439,12 @@ export default {
       }
     },
 
-    loadMoreTaskGroups() {
-      if (this.taskScrollDisabled) return
-      this.taskLoadingMore = true
-      this.fetchTaskGroupPage(true).finally(() => {
-        this.taskLoadingMore = false
-      })
+    handleTaskPageChange(page) {
+      this.fetchTaskGroupPage(page)
+    },
+
+    handleTaskQuery() {
+      this.fetchTaskGroupPage(1)
     },
 
     async fetchServicePage() {
@@ -522,10 +504,6 @@ export default {
       } catch (e) {
         console.warn('微服务引擎状态解析异常')
       }
-    },
-
-    async executeSilentSyncWorkflow() {
-      await Promise.all([this.fetchTaskGroupPage(), this.fetchServicePage()])
     },
 
     calculateGlobalStats(total) {
@@ -922,6 +900,42 @@ export default {
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   align-content: start;
+}
+
+/* 任务群组分页器深色主题 */
+.task-pagination-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 10px;
+  flex-shrink: 0;
+}
+.task-pagination-bar ::v-deep .el-pagination {
+  color: #94a3b8;
+}
+.task-pagination-bar ::v-deep .el-pagination__total {
+  color: #64748b;
+  font-size: 11px;
+  margin-right: 8px;
+}
+.task-pagination-bar ::v-deep .el-pagination button,
+.task-pagination-bar ::v-deep .el-pagination .el-pager li {
+  background-color: #0a1120;
+  border: 1px solid #172438;
+  border-radius: 3px;
+  color: #94a3b8;
+  font-size: 11px;
+  margin: 0 3px;
+}
+.task-pagination-bar ::v-deep .el-pagination button:hover,
+.task-pagination-bar ::v-deep .el-pagination .el-pager li:hover {
+  color: #38bdf8;
+  border-color: #38bdf8;
+}
+.task-pagination-bar ::v-deep .el-pagination .el-pager li.active {
+  background-color: #38bdf8;
+  border-color: #38bdf8;
+  color: #06121f;
 }
 ::-webkit-scrollbar {
   width: 4px;

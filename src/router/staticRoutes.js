@@ -307,6 +307,20 @@ const staticRoutes = [
     }
   },
   {
+    path: '/kill-chain-situation-monitor',
+    name: 'KillChainSituationMonitor',
+    component: () =>
+      import('@/views/system-operations/yktsjs/KillChainSituationMonitor.vue'),
+    meta: {
+      title: '杀伤链态势监控',
+      subsystem: '体系运营管理',
+      category: '运控态势监视',
+      icon: 'mdi:swords',
+      parentModule: '运控态势监视',
+      requiresAuth: true
+    }
+  },
+  {
     path: '/combat-resource-status',
     name: 'CombatResourceStatus',
     component: () =>

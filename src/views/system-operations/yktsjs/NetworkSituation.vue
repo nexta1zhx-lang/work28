@@ -46,7 +46,7 @@
     <div class="main-canvas-area">
       <div ref="topoContainer" class="topo-container"></div>
 
-      <!-- 画布工具栏 -->
+      <!-- 画布工具栏（固定 LR 横向布局） -->
       <div class="canvas-toolbar">
         <el-button
           type="primary"
@@ -57,14 +57,6 @@
         >
           <Icon icon="mdi:fit-to-screen" size="14px" />
         </el-button>
-        <el-radio-group
-          v-model="layoutType"
-          size="mini"
-          class="dir-radio-group"
-        >
-          <el-radio-button label="LR">横向</el-radio-button>
-          <el-radio-button label="TB">纵向</el-radio-button>
-        </el-radio-group>
       </div>
 
       <!-- 网络参数信息面板（选择网络后显示） -->
@@ -183,76 +175,9 @@
 
     <!-- 左侧：信息面板（结构树 / 消息发送 / 信息转发 / 信息流量 切换） -->
     <div class="left-tree-drawer">
-      <div class="tree-header">
-        <div class="left-tabs">
-          <span
-            class="left-tab"
-            :class="{active: leftTab === 'tree'}"
-            @click="onLeftTab('tree')"
-            >结构树</span
-          >
-          <span
-            class="left-tab"
-            :class="{active: leftTab === 'info'}"
-            @click="onLeftTab('info')"
-            >信息</span
-          >
-        </div>
-      </div>
+      <!-- 左侧信息监控（消息发送 / 信息转发 / 信息流量） -->
       <div class="tree-body">
-        <el-tree
-          v-show="leftTab === 'tree'"
-          :data="treeData"
-          :props="treeProps"
-          default-expand-all
-          node-key="id"
-          :highlight-current="true"
-          size="mini"
-          class="dark-tree"
-          @node-click="onTreeNodeClick"
-        >
-          <span class="custom-tree-node" slot-scope="{node, data}">
-            <span
-              class="tree-dot"
-              :class="
-                data.isLink
-                  ? data.online
-                    ? 'bg-online'
-                    : 'bg-offline'
-                  : 'bg-running'
-              "
-            ></span>
-            <span
-              class="tree-icon-wrapper"
-              style="
-                margin-right: 6px;
-                display: inline-flex;
-                align-items: center;
-              "
-            >
-              <Icon
-                :icon="
-                  data.isNet
-                    ? 'lucide:network'
-                    : data.isMember
-                      ? 'lucide:monitor'
-                      : 'lucide:cable'
-                "
-                :size="12"
-                :style="{
-                  color: data.isNet
-                    ? '#38bdf8'
-                    : data.isMember
-                      ? '#06b6d4'
-                      : '#a855f7'
-                }"
-              />
-            </span>
-            <span class="tree-label-txt">{{ node.label }}</span>
-          </span>
-        </el-tree>
-        <!-- 信息监控（消息发送 / 信息转发 / 信息流量） -->
-        <div v-show="leftTab === 'info'" class="info-panel">
+        <div class="info-panel">
           <div class="info-subtabs">
             <span
               :class="{active: infoTab === 'xxfsjg'}"
@@ -426,7 +351,7 @@
 
 <script>
 import {Graph} from '@antv/x6'
-import dagre from 'dagre'
+import {CircularLayout} from '@antv/layout'
 import {wlzt, wlztTopology, xxlltj, xxfsjg} from '@/api/network'
 
 /**
@@ -479,17 +404,14 @@ export default {
       globalLoading: false,
       networks: [], // 网络列表（来自 wlzt/page）
       currentWlh: 999, // 当前网络号（默认 999）
-      layoutType: 'LR', // 布局方向：LR 左右横向 / TB 上下纵向
       graph: null,
       detailVisible: false,
       selectedMember: null,
       highlightEdges: [],
-      pollTimer: null,
       lastRefreshTime: '',
       trafficList: [], // 信息流量实时列表（xxlltj）
       trafficLoading: false,
-      leftTab: 'tree', // 左侧主 tab：tree 结构树 / info 信息监控
-      infoTab: 'xxfsjg', // 信息监控子 tab：xxfsjg 消息发送 / xxzf 信息转发 / xxlltj 信息流量
+      infoTab: 'xxfsjg', // 信息 tab：xxfsjg 消息发送 / xxzf 信息转发 / xxlltj 信息流量
       msgSendList: [], // 消息发送结果列表（xxfsjg，50条）
       msgSendLoading: false,
       // 信息转发（模拟数据）
@@ -548,8 +470,7 @@ export default {
           ZFZT: 0,
           TIME: 1777085625000
         }
-      ],
-      lastFingerprint: '' // 当前已渲染拓扑的数据指纹（用于避免数据未变时重建闪烁）
+      ]
     }
   },
   computed: {
@@ -611,63 +532,21 @@ export default {
         {label: '剩余带宽', value: fmtFreq(n.SYDK), cls: syCls},
         {label: '丢包率', value: fmtPct(n.DBL), cls: dblCls}
       ]
-    },
-    treeProps() {
-      return {children: 'children', label: 'name'}
-    },
-    treeData() {
-      const net = this.currentNet
-      if (!net) return []
-      return [
-        {
-          id: 'net' + net.WLH,
-          name: '网络 ' + net.WLH,
-          isNet: true,
-          children: (net.WLCYLB || []).map(member => ({
-            id: 'pt' + member.PTID,
-            name: member.PTMC || '平台 #' + member.PTID,
-            isMember: true,
-            children: (member.PTLLLB || []).map(link => ({
-              id: 'll' + link.LLH,
-              name: '链路 #' + link.LLH,
-              isLink: true,
-              online:
-                (link.LJJDLB || []).every(n => Number(n.LJJDZT) === 0) &&
-                link.LJJDLB.length > 0
-            }))
-          }))
-        }
-      ]
     }
   },
   mounted() {
     this.initGraph()
-    this.startPolling()
+    this.fetchAll()
     window.addEventListener('resize', this.handleResize)
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.handleResize)
-    if (this.pollTimer) clearInterval(this.pollTimer)
     if (this.graph) this.graph.dispose()
   },
-  watch: {
-    layoutType() {
-      this.rebuildGraph()
-    }
-  },
+
   methods: {
     /**
-     * 启动轮询：立即查一次，之后每 5 秒查一次
-     */
-    startPolling() {
-      this.fetchAll()
-      this.pollTimer = setInterval(() => {
-        this.fetchAll()
-      }, 5000)
-    },
-
-    /**
-     * 轮询刷新：查询网络列表 + 当前网络拓扑
+     * 页面加载：查询网络列表 + 当前网络拓扑（不轮询）
      */
     async fetchAll() {
       try {
@@ -757,12 +636,10 @@ export default {
       const list = (res && res.data && res.data.list) || []
       if (!Array.isArray(list)) return
 
-      // 更新/合并网络下拉结构：保留已加载的拓扑数据(WLCYLB/WLCYS)，避免覆盖导致闪烁
-      const merged = []
-      list.forEach(item => {
+      // 直接映射网络列表（不做合并，拓扑数据由 fetchTopology 单独赋值）
+      this.networks = list.map(item => {
         const wlh = Number(item.WLH)
-        const existing = this.networks.find(n => n.WLH === wlh)
-        merged.push({
+        return {
           WLH: wlh,
           WLMC: item.WLMC || '网络' + wlh,
           // WLZT 网络参数（供网络信息面板展示）
@@ -773,27 +650,10 @@ export default {
           SYDK: item.SYDK,
           DBL: item.DBL,
           JKZT: item.JKZT,
-          // 优先用后端统计的成员数(WLCYS)，否则保留已加载拓扑的成员数，避免初始为0
-          WLCYS:
-            item.WLCYS != null
-              ? Number(item.WLCYS)
-              : existing
-                ? existing.WLCYS
-                : 0,
-          WLCYLB: existing ? existing.WLCYLB : []
-        })
-      })
-      // 保留不在列表但已加载拓扑的网络
-      this.networks.forEach(n => {
-        if (
-          !merged.some(m => m.WLH === n.WLH) &&
-          n.WLCYLB &&
-          n.WLCYLB.length > 0
-        ) {
-          merged.push(n)
+          WLCYS: item.WLCYS != null ? Number(item.WLCYS) : 0,
+          WLCYLB: []
         }
       })
-      this.networks = merged
 
       // 保持当前网络选择有效，否则切换第一个
       if (!this.networks.some(n => n.WLH === this.currentWlh)) {
@@ -808,66 +668,25 @@ export default {
       if (!this.currentWlh) return
       const res = await wlztTopology(this.currentWlh)
       const net = (res && res.data) || null
-      if (!net || !net.WLCYLB || net.WLCYLB.length === 0) {
-        this.rebuildGraph(true)
-        return
-      }
+      if (!net) return
 
-      // 生成数据指纹：若拓扑数据未变化，跳过重建避免画面闪烁
-      const fingerprint = this.makeTopologyFingerprint(net)
-      const sameData =
-        fingerprint === this.lastFingerprint &&
-        this.currentWlh === this.lastFingerprintWlh
-
-      // 用后端拓扑数据替换当前网络（合并保留 WLZT 网络参数，避免被覆盖丢失）
-      this.networks = this.networks.map(n => {
-        if (n.WLH === Number(net.WLH)) return {...n, ...net}
-        return n
-      })
-      // 若 networks 中没有当前网络，则直接插入
-      if (!this.networks.some(n => n.WLH === Number(net.WLH))) {
+      // 直接用后端拓扑替换当前网络（保留 WLZT 网络参数）
+      const idx = this.networks.findIndex(
+        n => n.WLH === Number(this.currentWlh)
+      )
+      if (idx >= 0) {
+        this.networks.splice(idx, 1, {...this.networks[idx], ...net})
+      } else {
         this.networks.push(net)
       }
 
-      this.lastFingerprint = fingerprint
-      this.lastFingerprintWlh = this.currentWlh
-
-      // 数据未变化时不重建画布（保留当前视图与弹窗），避免闪烁
-      if (sameData) return
-      // 轮询刷新时保留当前选中弹窗
       this.rebuildGraph(true)
     },
 
-    /**
-     * 生成网络拓扑数据指纹（成员+链路+邻接节点结构签名）
-     */
-    makeTopologyFingerprint(net) {
-      const members = net.WLCYLB || []
-      return members
-        .map(m => {
-          const links = (m.PTLLLB || [])
-            .map(l => {
-              const neis = (l.LJJDLB || [])
-                .map(n => `${n.LJJDID}:${n.LJJDZT}`)
-                .join(',')
-              return `${l.LLH}:${l.LLLX}:${l.LLJKZT}:${neis}`
-            })
-            .join('|')
-          return `${m.PTID}:${m.PTWLDZ}:${links}`
-        })
-        .join('#')
-    },
-
-    /** 网络切换：强制重新拉取该网络拓扑并重建 */
+    /** 网络切换：直接查询该网络拓扑与流量 */
     async onNetworkChange() {
-      this.lastFingerprint = ''
-      this.lastFingerprintWlh = null
       await this.fetchTopology()
-    },
-
-    /** 左侧主 tab 切换（结构树 / 信息） */
-    onLeftTab(tab) {
-      this.leftTab = tab
+      await this.fetchTraffic()
     },
 
     initGraph() {
@@ -961,18 +780,7 @@ export default {
         return
       }
 
-      // 1. 用 dagre 计算节点坐标
-      const g = new dagre.graphlib.Graph()
-      g.setGraph({
-        rankdir: this.layoutType,
-        nodesep: 90,
-        ranksep: 140,
-        align: 'UL',
-        marginx: 60,
-        marginy: 60
-      })
-      g.setDefaultEdgeLabel(() => ({}))
-
+      // 1. 节点基础参数（圆形图布局）
       const nodeWidth = 160
       const nodeHeight = 92
       // 平台名称超长截断（完整名称通过悬浮提示查看）
@@ -981,9 +789,6 @@ export default {
         return name.length > 12 ? name.slice(0, 12) + '…' : name
       }
       const memberIds = members.map(m => 'pt' + m.PTID)
-      memberIds.forEach(id => {
-        g.setNode(id, {width: nodeWidth, height: nodeHeight})
-      })
 
       // 2. 建立成员间连线关系（通过链路邻接节点）
       // 方案B：链路号全网统一，一条链路两端都会记录，按 LLH 去重只画一次
@@ -1020,26 +825,30 @@ export default {
                 LJJDZT: Number(nei.LJJDZT),
                 LJJDID: nei.LJJDID
               })
-              g.setEdge('pt' + m.PTID, 'pt' + target.PTID)
             }
           })
         })
       })
 
-      // 若图没有任何连线（邻接节点与成员不匹配等），dagre 会把节点垂直堆叠、
-      // 无法对齐。此时添加链式虚拟边，让节点按布局方向对齐排列
-      // （LR 横向布局 → 节点水平排成一行；TB 纵向布局 → 垂直排成一列）
-      if (g.edges().length === 0 && memberIds.length > 1) {
-        for (let i = 0; i < memberIds.length - 1; i++) {
-          g.setEdge(memberIds[i], memberIds[i + 1])
-        }
-      }
+      // 圆形图布局：成员围成圆，链路作为弦（更符合网络拓扑图的展示）
+      const radius = Math.max(180, memberIds.length * 75)
+      const circularLayout = new CircularLayout({
+        type: 'circular',
+        radius,
+        ordering: null // 按成员顺序围圆
+      })
+      const layoutData = circularLayout.layout({
+        nodes: memberIds.map(id => ({id})),
+        edges: linkEdges.map(e => ({source: e.source, target: e.target}))
+      })
+      const posMap = {}
+      layoutData.nodes.forEach(n => {
+        posMap[n.id] = {x: n.x, y: n.y}
+      })
 
-      dagre.layout(g)
-
-      // 3. 渲染成员节点（自定义 markup：标题 + 副标题 两行文本）
+      // 3. 渲染成员节点（自定义 markup：图标 + 名称 + IP）
       members.forEach(m => {
-        const pos = g.node('pt' + m.PTID)
+        const pos = posMap['pt' + m.PTID]
         this.graph.addNode({
           id: 'pt' + m.PTID,
           x: pos.x - nodeWidth / 2,
@@ -1197,23 +1006,6 @@ export default {
         edge.attr('line/stroke', online ? '#10b981' : '#ef4444')
       })
       this.highlightEdges = []
-    },
-
-    /** 树节点点击：定位/高亮对应成员 */
-    onTreeNodeClick(data) {
-      if (data.isMember) {
-        const ptId = Number(data.id.replace('pt', ''))
-        const node = this.graph && this.graph.getCellById('pt' + ptId)
-        if (node) {
-          this.graph.centerCell(node)
-          const member = this.currentMembers.find(m => m.PTID === ptId)
-          if (member) {
-            this.selectedMember = member
-            this.detailVisible = true
-            this.highlightMemberEdges(ptId)
-          }
-        }
-      }
     },
     fitCanvas() {
       if (this.graph) {
@@ -1441,31 +1233,6 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-.canvas-toolbar ::v-deep .el-radio-group.dir-radio-group {
-  display: inline-flex;
-  background: rgba(8, 14, 24, 0.85);
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.canvas-toolbar ::v-deep .el-radio-button__inner {
-  background: transparent !important;
-  border: none !important;
-  color: #64748b !important;
-  font-size: 11px !important;
-  padding: 5px 10px !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  font-weight: bold;
-}
-.canvas-toolbar
-  ::v-deep
-  .el-radio-button__orig-radio:checked
-  + .el-radio-button__inner {
-  background: rgba(56, 189, 248, 0.15) !important;
-  color: #38bdf8 !important;
-  box-shadow: none !important;
 }
 .empty-state {
   position: absolute;
@@ -1854,26 +1621,6 @@ export default {
   color: #38bdf8;
   border-bottom: 1px solid #111b2b;
   flex-shrink: 0;
-}
-.left-tabs {
-  display: flex;
-  gap: 2px;
-  margin-left: 4px;
-}
-.left-tab {
-  font-size: 10px;
-  color: #64748b;
-  padding: 2px 5px;
-  border-radius: 3px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  user-select: none;
-  white-space: nowrap;
-}
-.left-tab.active {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  border-color: rgba(56, 189, 248, 0.25);
 }
 .info-panel {
   display: flex;
