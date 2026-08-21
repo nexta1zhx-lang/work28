@@ -12,6 +12,26 @@
             <i class="el-icon-close pop-close" @click="cfgVisible = false"></i>
           </div>
           <div class="cfg-group">
+            <div class="cfg-title">底图影像</div>
+            <div class="cfg-item cfg-col">
+              <span class="cfg-label">
+                <i class="cfg-icon el-icon-picture-outline"></i>
+                <span class="cfg-text">
+                  <span class="cfg-name">卫星底图</span>
+                </span>
+              </span>
+              <el-radio-group
+                v-model="baseSource"
+                size="mini"
+                class="cfg-base-radios"
+                @change="applyBaseSource"
+              >
+                <el-radio-button label="esri">Esri</el-radio-button>
+                <el-radio-button label="gaode">高德</el-radio-button>
+              </el-radio-group>
+            </div>
+          </div>
+          <div class="cfg-group">
             <div class="cfg-title">边界与行政区</div>
             <div class="cfg-item">
               <span class="cfg-label">
@@ -93,6 +113,44 @@
     <div class="gis-coords">
       <span v-if="centerLabel">{{ centerLabel }}</span>
     </div>
+
+    <!-- 顶部：作战筹划 / 态势监控 面板切换 -->
+    <div class="gis-panel-tabs">
+      <div
+        class="gis-panel-tab"
+        :class="{active: activePanel === 'plan'}"
+        @click="activePanel = 'plan'"
+      >
+        <i class="el-icon-notebook-2"></i>作战筹划
+      </div>
+      <div
+        class="gis-panel-tab"
+        :class="{active: activePanel === 'monitor'}"
+        @click="activePanel = 'monitor'"
+      >
+        <i class="el-icon-odometer"></i>态势监控
+      </div>
+      <div
+        class="gis-panel-tab"
+        :class="{active: activePanel === 'target'}"
+        @click="activePanel = 'target'"
+      >
+        <i class="el-icon-s-opportunity"></i>目标态势
+      </div>
+    </div>
+
+    <!-- 作战筹划面板（独立组件，按任务显示编成/路线/区域；顶栏由上方统一控制） -->
+    <combat-planning-panel
+      v-show="activePanel === 'plan'"
+      :show-tabbar="false"
+      :map="map"
+    />
+
+    <!-- 态势监控面板：资源状态监控 -->
+    <situation-monitor-panel v-show="activePanel === 'monitor'" :map="map" />
+
+    <!-- 目标态势面板：目标信息 -->
+    <target-situation-panel v-show="activePanel === 'target'" :map="map" />
   </div>
 </template>
 
@@ -100,13 +158,24 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {MAJOR_CITIES, PLACE_NAMES} from './gisData'
+import CombatPlanningPanel from './components/CombatPlanningPanel.vue'
+import SituationMonitorPanel from './components/SituationMonitorPanel.vue'
+import TargetSituationPanel from './components/TargetSituationPanel.vue'
 
 export default {
   name: 'LeafletGisView',
+  components: {
+    CombatPlanningPanel,
+    SituationMonitorPanel,
+    TargetSituationPanel
+  },
   data() {
     return {
       map: null,
+      // 顶部面板切换：plan 作战筹划 / monitor 态势监控 / target 目标态势
+      activePanel: 'plan',
       tileSat: null,
+      tileSatChina: null,
       graticule: null,
       graticuleRenderer: null,
       borderLayer: null,
@@ -120,12 +189,14 @@ export default {
       cityWorldGroup: null,
       cityCapitalGroup: null,
       cfgVisible: false,
+      // 底图来源：esri(全球+周边z8) / gaode(全球+中国z8，周边回退z7)
+      baseSource: 'esri',
       gridOn: true,
-      // 默认不显示国家边界与海岸线（可在右上角齿轮弹窗中开启）
+      // 默认不显示国家边界、海岸线；地理要素(经纬度标注/地名)默认开启，主要城市默认关闭
       showBorders: false,
       showCoast: false,
       showLabels: true,
-      showCities: true,
+      showCities: false,
       showPlaces: true,
       centerLabel: ''
     }
@@ -150,7 +221,8 @@ export default {
       })
 
       // 卫星影像底图（无路网标注；全球 z2~7 + 中国 z8）
-      this.tileSat = L.tileLayer('/sat/{z}/{x}/{y}.jpg', {
+      // ?v=5：全量换 Esri 源后强制刷新浏览器缓存
+      this.tileSat = L.tileLayer('/sat/{z}/{x}/{y}.jpg?v=5', {
         minZoom: 2,
         maxZoom: 18,
         // 本地瓦片最高到 z7(全球)/z8(中国)，maxNativeZoom 取真实上限，更高级别自动放大避免空白
@@ -159,7 +231,18 @@ export default {
       })
       this.tileSat.addTo(this.map)
 
-      this.map.setView([30.0, 110.0], 3)
+      // 中国及周边 z8 高清叠加层（仅 bbox 55~148E/3~56N 内且 z>=8 时生效，
+      // 覆盖全球层放大的 z7，其余区域自动回退 z7 放大）
+      this.tileSatChina = L.tileLayer('/sat/{z}/{x}/{y}.jpg?v=5', {
+        minZoom: 8,
+        maxZoom: 18,
+        maxNativeZoom: 8,
+        bounds: L.latLngBounds([3, 55], [56, 148]),
+        attribution: ''
+      })
+      this.tileSatChina.addTo(this.map)
+
+      this.map.setView([37.684, 94.482], 4)
       this.map.setMaxBounds(L.latLngBounds([-85, -180], [85, 180]))
       this.map.setMinZoom(2)
 
@@ -503,6 +586,29 @@ export default {
       toggle(this.borderDetailGroup, z >= 6 && detailReady)
     },
 
+    /** 切换底图来源（Esri 全球+周边z8 / 高德 全球+中国z8） */
+    applyBaseSource() {
+      if (!this.map || !this.tileSat) return
+      const isGd = this.baseSource === 'gaode'
+      const prefix = isGd ? '/sat_gd' : '/sat'
+      const url = `${prefix}/{z}/{x}/{y}.jpg?v=5`
+      // 全球层
+      this.tileSat.setUrl(url)
+      // 重建 z8 叠加层（高德版仅中国 bbox，周边放大回退 z7）
+      if (this.tileSatChina && this.map.hasLayer(this.tileSatChina)) {
+        this.map.removeLayer(this.tileSatChina)
+      }
+      this.tileSatChina = L.tileLayer(url, {
+        minZoom: 8,
+        maxZoom: 18,
+        maxNativeZoom: 8,
+        bounds: isGd
+          ? L.latLngBounds([18, 73], [54, 135])
+          : L.latLngBounds([3, 55], [56, 148]),
+        attribution: ''
+      }).addTo(this.map)
+    },
+
     /** 更新中心坐标显示 */
     updateCenterCoords() {
       if (!this.map) return
@@ -642,6 +748,12 @@ export default {
           background 0.2s,
           border-color 0.2s;
 
+        /* 纵向布局（底图影像）：保证切换按钮完整显示 */
+        &.cfg-col {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
         &:hover {
           background: rgba(127, 208, 255, 0.1);
           border-color: rgba(127, 208, 255, 0.3);
@@ -686,6 +798,16 @@ export default {
           }
         }
       }
+
+      /* 底图影像切换按钮：占满整行，两端均完整显示 */
+      .cfg-base-radios {
+        display: flex;
+        width: 100%;
+
+        .el-radio-button {
+          flex: 1;
+        }
+      }
     }
   }
 
@@ -700,6 +822,47 @@ export default {
   .gis-pop-leave-to {
     opacity: 0;
     transform: translateX(calc(100% + 12px));
+  }
+
+  /* 顶部面板切换：作战筹划 / 态势监控 */
+  .gis-panel-tabs {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1200;
+    display: flex;
+    gap: 8px;
+    padding: 4px;
+    background: rgba(15, 27, 48, 0.92);
+    border: 1px solid rgba(90, 170, 255, 0.28);
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+
+    .gis-panel-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 22px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: #8fb8dc;
+      border-radius: 7px;
+      cursor: pointer;
+      transition:
+        background 0.25s,
+        color 0.25s;
+
+      &:hover {
+        color: #fff;
+      }
+      &.active {
+        color: #7fd0ff;
+        background: rgba(127, 208, 255, 0.14);
+      }
+    }
   }
 
   .gis-coords {
@@ -826,5 +989,28 @@ export default {
 /* 隐藏 Leaflet 版权/logo 区域（双保险） */
 .leaflet-control-attribution {
   display: none !important;
+}
+
+/* 底图切换按钮：深色科技风、撑满一行、两端完整显示 */
+.gis-light-map .cfg-base-radios {
+  .el-radio-button__inner {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(90, 170, 255, 0.25);
+    border-radius: 4px;
+    color: #9fb3c8;
+  }
+  .el-radio-button:first-child .el-radio-button__inner {
+    border-radius: 4px 0 0 4px;
+  }
+  .el-radio-button:last-child .el-radio-button__inner {
+    border-radius: 0 4px 4px 0;
+  }
+  .el-radio-button__orig-radio:checked + .el-radio-button__inner {
+    background: rgba(36, 70, 118, 0.95);
+    color: #fff;
+    border-color: rgba(127, 208, 255, 0.5);
+    box-shadow: -1px 0 0 0 rgba(127, 208, 255, 0.5);
+  }
 }
 </style>

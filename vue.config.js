@@ -38,6 +38,10 @@ module.exports = {
         // 如果有其他别名也可以加在这里
         // 'components': path.resolve(__dirname, 'src/components'),
       }
+    },
+    // 忽略瓦片目录监听（sat=Esri / sat_gd=高德，2万+瓦片文件，改动会触发 webpack 无限重编译卡死）
+    watchOptions: {
+      ignored: ['**/public/sat*/**', '**/node_modules/**']
     }
   },
   chainWebpack: config => {

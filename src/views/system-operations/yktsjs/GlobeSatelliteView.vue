@@ -66,6 +66,7 @@ export default {
   data() {
     return {
       chart: null,
+      baseTexture: null,
       autoRotate: true,
       loading: false,
       total: 0,
@@ -74,10 +75,23 @@ export default {
     }
   },
   async mounted() {
-    this.initChart()
+    this.chart = echarts.init(this.$refs.globeEl)
     this.loadPlatformTypeMap()
-    this.loadPlatforms()
     window.addEventListener('resize', this.onResize)
+    try {
+      // 并行：拼全球瓦片纹理 + 分页拉取平台点位
+      const [texture, list] = await Promise.all([
+        this.buildEarthTexture(TEX_ZOOM).catch(e => {
+          console.error('地球纹理构建失败', e)
+          return null
+        }),
+        this.fetchAllPlatforms()
+      ])
+      this.baseTexture = texture
+      this.renderPoints(list)
+    } catch (e) {
+      console.error('3D 地球初始化失败', e)
+    }
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.onResize)
@@ -85,42 +99,6 @@ export default {
     this.chart = null
   },
   methods: {
-    /** 初始化 3D 卫星地球 */
-    async initChart() {
-      this.chart = echarts.init(this.$refs.globeEl)
-
-      // 用本地全球卫星瓦片拼接等距柱状纹理
-      const baseTexture = await this.buildEarthTexture(TEX_ZOOM)
-
-      this.chart.setOption({
-        backgroundColor: '#050a14',
-        globe: {
-          baseTexture,
-          shading: 'realistic',
-          environment: 'none',
-          atmosphere: {
-            show: true,
-            color: '#3a6ea5',
-            glowPower: 90
-          },
-          light: {
-            ambient: {intensity: 0.45},
-            main: {intensity: 1.35, shadow: 'low'}
-          },
-          viewControl: {
-            autoRotate: this.autoRotate,
-            autoRotateSpeed: 5,
-            distance: 220,
-            minDistance: 80,
-            maxDistance: 600,
-            alpha: 25,
-            beta: 0
-          }
-        },
-        series: []
-      })
-    },
-
     /** 拼接全球卫星瓦片为一张 canvas 纹理 */
     buildEarthTexture(z) {
       const n = Math.pow(2, z)
@@ -153,7 +131,8 @@ export default {
         img.onload = () => resolve(img)
         img.onerror = () =>
           reject(new Error('tile fail ' + z + '/' + x + '/' + y))
-        img.src = `/sat/${z}/${x}/${y}.jpg`
+        // ?v=5 强制刷新缓存（全量换 Esri 源后避免旧瓦片）
+        img.src = `/sat/${z}/${x}/${y}.jpg?v=5`
       })
     },
 
@@ -167,8 +146,14 @@ export default {
       }
     },
 
-    /** 分页拉取全量平台点位 */
+    /** 刷新点位（供工具栏按钮调用） */
     async loadPlatforms() {
+      const list = await this.fetchAllPlatforms()
+      this.renderPoints(list)
+    },
+
+    /** 分页拉取全量平台点位，返回数组 */
+    async fetchAllPlatforms() {
       this.loading = true
       const list = []
       const pageSize = 1000
@@ -189,8 +174,8 @@ export default {
         this.$message &&
           this.$message.error('加载平台数据失败：' + (e.message || e))
       }
-      this.renderPoints(list)
       this.loading = false
+      return list
     },
 
     /** 渲染平台点位到 3D 地球 */
@@ -235,14 +220,47 @@ export default {
         itemStyle: {color: colorOf(p.PTLX)}
       }))
 
+      // 一次性下发 globe + series（避免二次 setOption 丢失 baseTexture 导致地球变白）
+      this.applyOption(data)
+    },
+
+    /** 一次性设置 globe + series，并缓存点位供后续刷新/旋转复用 */
+    applyOption(data) {
+      if (!this.chart) return
+      this._seriesData = data || []
+
+      const globe = {
+        baseTexture: this.baseTexture || undefined,
+        // lambert：canvas 纹理能正常显示彩色；realistic 依赖 environment(IBL)，
+        // environment 为 none 时会把地球渲染成灰白色
+        shading: 'lambert',
+        environment: 'none',
+        atmosphere: {show: true, color: '#3a6ea5', glowPower: 90},
+        light: {
+          ambient: {intensity: 0.5},
+          main: {intensity: 1.2, shadow: 'low'}
+        },
+        viewControl: {
+          autoRotate: this.autoRotate,
+          autoRotateSpeed: 5,
+          distance: 220,
+          minDistance: 80,
+          maxDistance: 600,
+          alpha: 25,
+          beta: 0
+        }
+      }
+
       this.chart.setOption({
+        backgroundColor: '#050a14',
+        globe,
         series: [
           {
             type: 'scatter3D',
             coordinateSystem: 'globe',
             blendMode: 'lighter',
             symbolSize: 7,
-            data,
+            data: this._seriesData,
             itemStyle: {opacity: 0.95},
             label: {show: false},
             emphasis: {
@@ -260,14 +278,10 @@ export default {
       })
     },
 
-    /** 自动旋转开关 */
+    /** 自动旋转开关（重新应用完整 globe，保持纹理） */
     toggleRotate() {
       this.autoRotate = !this.autoRotate
-      if (this.chart) {
-        this.chart.setOption({
-          globe: {viewControl: {autoRotate: this.autoRotate}}
-        })
-      }
+      this.applyOption(this._seriesData)
     },
 
     onResize() {

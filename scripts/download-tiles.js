@@ -32,8 +32,14 @@ const TILE_SOURCE =
 const SUBDOMAINS = (process.env.SUBDOMAINS || '01,02,03,04').split(',')
 const USER_AGENT = 'Mozilla/5.0 (intranet-tile-downloader)'
 
-// 中国 + 台海区域（西, 南, 东, 北）
-const BBOX = {west: 73, south: 18, east: 135, north: 54}
+// 下载范围 bbox（西, 南, 东, 北），可用环境变量 BBOX_WEST/BBOX_SOUTH/BBOX_EAST/BBOX_NORTH 覆盖
+// 默认：中国 + 台海区域
+const BBOX = {
+  west: Number(process.env.BBOX_WEST || 73),
+  south: Number(process.env.BBOX_SOUTH || 18),
+  east: Number(process.env.BBOX_EAST || 135),
+  north: Number(process.env.BBOX_NORTH || 54)
+}
 
 // 下载缩放级别（可用环境变量覆盖，如 MAX_ZOOM=8）
 const MIN_ZOOM = Number(process.env.MIN_ZOOM || 4)
@@ -125,7 +131,7 @@ async function main() {
   }
   const scope = GLOBAL
     ? '全球'
-    : `中国+台海 ${BBOX.west}~${BBOX.east}E, ${BBOX.south}~${BBOX.north}N`
+    : `${BBOX.west}~${BBOX.east}E, ${BBOX.south}~${BBOX.north}N`
   console.log(`共需下载 ${total} 片瓦片（${scope}）`)
   console.log(`输出目录: ${OUT_DIR}`)
 

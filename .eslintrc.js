@@ -14,7 +14,9 @@ module.exports = {
     'vue/multi-word-component-names': 'off',
     'vue/no-unused-vars': 'off',
     // 允许存在无法执行到的代码（取消报错）
-    'no-unreachable': 'off'
+    'no-unreachable': 'off',
+    // 行首 `;[` 的 ASI 防御分号不再报错（no-extra-semi 会把它标为多余分号）
+    'no-extra-semi': 'off'
     // 或者设置为警告而不是报错
     // 'vue/multi-word-component-names': 'warn',
 

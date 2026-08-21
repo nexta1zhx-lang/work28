@@ -292,20 +292,21 @@ const staticRoutes = [
       requiresAuth: true
     }
   },
-  {
-    path: '/kill-chain-situation',
-    name: 'KillChainSituation',
-    component: () =>
-      import('@/views/system-operations/yktsjs/KillChainSituation.vue'),
-    meta: {
-      title: '杀伤链运行态势监视',
-      subsystem: '体系运营管理',
-      category: '运控态势监视',
-      icon: 'mdi:sword-cross',
-      parentModule: '运控态势监视',
-      requiresAuth: true
-    }
-  },
+  // ===== 以下两个页面暂不显示（如需恢复，取消注释即可） =====
+  // {
+  //   path: '/kill-chain-situation',
+  //   name: 'KillChainSituation',
+  //   component: () =>
+  //     import('@/views/system-operations/yktsjs/KillChainSituation.vue'),
+  //   meta: {
+  //     title: '杀伤链运行态势监视',
+  //     subsystem: '体系运营管理',
+  //     category: '运控态势监视',
+  //     icon: 'mdi:sword-cross',
+  //     parentModule: '运控态势监视',
+  //     requiresAuth: true
+  //   }
+  // },
   {
     path: '/kill-chain-situation-monitor',
     name: 'KillChainSituationMonitor',
@@ -315,7 +316,7 @@ const staticRoutes = [
       title: '杀伤链态势监控',
       subsystem: '体系运营管理',
       category: '运控态势监视',
-      icon: 'mdi:swords',
+      icon: 'lucide:swords',
       parentModule: '运控态势监视',
       requiresAuth: true
     }
@@ -334,20 +335,20 @@ const staticRoutes = [
       requiresAuth: true
     }
   },
-  {
-    path: '/network-status-monitoring',
-    name: 'NetworkStatusMonitoring',
-    component: () =>
-      import('@/views/system-operations/yktsjs/NetworkTopology.vue'),
-    meta: {
-      title: '网络状态信息监视',
-      subsystem: '体系运营管理',
-      category: '运控态势监视',
-      icon: 'lucide:globe',
-      parentModule: '运控态势监视',
-      requiresAuth: true
-    }
-  },
+  // {
+  //   path: '/network-status-monitoring',
+  //   name: 'NetworkStatusMonitoring',
+  //   component: () =>
+  //     import('@/views/system-operations/yktsjs/NetworkTopology.vue'),
+  //   meta: {
+  //     title: '网络状态信息监视',
+  //     subsystem: '体系运营管理',
+  //     category: '运控态势监视',
+  //     icon: 'lucide:globe',
+  //     parentModule: '运控态势监视',
+  //     requiresAuth: true
+  //   }
+  // },
   {
     path: '/network-situation',
     name: 'NetworkSituation',
@@ -376,20 +377,22 @@ const staticRoutes = [
       requiresAuth: true
     }
   },
-  {
-    path: '/gis-globe',
-    name: 'GisGlobe',
-    component: () =>
-      import('@/views/system-operations/yktsjs/GlobeSatelliteView.vue'),
-    meta: {
-      title: '3D卫星地球',
-      subsystem: '体系运营管理',
-      category: '运控态势监视',
-      icon: 'lucide:globe',
-      parentModule: '运控态势监视',
-      requiresAuth: true
-    }
-  },
+  // 3D 卫星地球（已注释：echarts-gl globe 二次 setOption 会导致 canvas 纹理丢失、
+  // 地球变灰白，暂无法修复，先隐藏入口。组件保留：GlobeSatelliteView.vue）
+  // {
+  //   path: '/gis-globe',
+  //   name: 'GisGlobe',
+  //   component: () =>
+  //     import('@/views/system-operations/yktsjs/GlobeSatelliteView.vue'),
+  //   meta: {
+  //     title: '3D卫星地球',
+  //     subsystem: '体系运营管理',
+  //     category: '运控态势监视',
+  //     icon: 'lucide:globe',
+  //     parentModule: '运控态势监视',
+  //     requiresAuth: true
+  //   }
+  // },
 
   // 系统运维
   {

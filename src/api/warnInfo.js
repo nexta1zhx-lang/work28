@@ -32,3 +32,14 @@ export function getLatestWarnInfo() {
     }
   })
 }
+
+/**
+ * 查询指定平台的告警信息（地图点位点击展示）
+ * @param {string|number} ptid 平台ID (PTID)
+ */
+export function getPtWarnInfos(ptid) {
+  return request({
+    url: `/rest/warnInfo/ptWarnInfos/${ptid}`,
+    method: 'get'
+  })
+}
