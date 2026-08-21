@@ -402,8 +402,9 @@ export default {
   data() {
     return {
       globalLoading: false,
-      networks: [], // 网络列表（来自 wlzt/page）
-      currentWlh: 999, // 当前网络号（默认 999）
+      networks: [], // 网络列表（来自 wlzt/page，仅列表+参数）
+      topology: null, // 当前网络拓扑数据（来自 wlzt/{wlh}，独立于列表）
+      currentWlh: null, // 当前网络号（加载后默认选网络列表第一个）
       graph: null,
       detailVisible: false,
       selectedMember: null,
@@ -475,10 +476,12 @@ export default {
   },
   computed: {
     currentNet() {
+      // 网络参数面板：从网络列表取（不混入拓扑）
       return this.networks.find(n => n.WLH === this.currentWlh) || null
     },
     currentMembers() {
-      return (this.currentNet && this.currentNet.WLCYLB) || []
+      // 拓扑画布：从独立拓扑数据取
+      return (this.topology && this.topology.WLCYLB) || []
     },
     hasGraph() {
       return this.currentMembers.length > 0
@@ -655,9 +658,13 @@ export default {
         }
       })
 
-      // 保持当前网络选择有效，否则切换第一个
-      if (!this.networks.some(n => n.WLH === this.currentWlh)) {
-        this.currentWlh = this.networks[0] ? this.networks[0].WLH : 999
+      // 默认选中网络列表第一个（初次加载时 currentWlh 为空）
+      // 用户切换后保持其选择
+      if (
+        this.currentWlh == null ||
+        !this.networks.some(n => n.WLH === this.currentWlh)
+      ) {
+        this.currentWlh = this.networks[0] ? this.networks[0].WLH : null
       }
     },
 
@@ -668,17 +675,9 @@ export default {
       if (!this.currentWlh) return
       const res = await wlztTopology(this.currentWlh)
       const net = (res && res.data) || null
-      if (!net) return
 
-      // 直接用后端拓扑替换当前网络（保留 WLZT 网络参数）
-      const idx = this.networks.findIndex(
-        n => n.WLH === Number(this.currentWlh)
-      )
-      if (idx >= 0) {
-        this.networks.splice(idx, 1, {...this.networks[idx], ...net})
-      } else {
-        this.networks.push(net)
-      }
+      // 有拓扑则更新；无拓扑则置空（rebuildGraph 会清空画布，不保留旧网络）
+      this.topology = net
 
       this.rebuildGraph(true)
     },
@@ -831,7 +830,10 @@ export default {
       })
 
       // 圆形图布局：成员围成圆，链路作为弦（更符合网络拓扑图的展示）
-      const radius = Math.max(180, memberIds.length * 75)
+      // 连线长短 / 节点间距由 radius（半径）控制：
+      //   radius 越大 → 节点越分散、连线越长；越小 → 节点越聚拢、连线越短
+      // 节点大小由 nodeWidth / nodeHeight 控制
+      const radius = Math.max(120, memberIds.length * 55)
       const circularLayout = new CircularLayout({
         type: 'circular',
         radius,
