@@ -22,6 +22,12 @@ module.exports = {
         target: 'http://localhost:8072',
         changeOrigin: true
       }
+      // 方案B（可选）：瓦片放在独立 Nginx 时，开发环境把 /tiles 代理过去。
+      // 注意：启用后 public/tiles 下的本地瓦片将不再被命中（代理优先）。
+      // '/tiles': {
+      //   target: 'http://localhost:8090', // 你本地 Nginx 瓦片根目录（含 {z}/{x}/{y}.png）
+      //   changeOrigin: true
+      // }
     }
   },
   // 方式 A: 使用 configureWebpack (简单直接)

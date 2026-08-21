@@ -362,6 +362,34 @@ const staticRoutes = [
       requiresAuth: true
     }
   },
+  {
+    path: '/gis-light-map',
+    name: 'GisLightMap',
+    component: () =>
+      import('@/views/system-operations/yktsjs/LeafletGisView.vue'),
+    meta: {
+      title: '轻量GIS点位展示',
+      subsystem: '体系运营管理',
+      category: '运控态势监视',
+      icon: 'lucide:map',
+      parentModule: '运控态势监视',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/gis-globe',
+    name: 'GisGlobe',
+    component: () =>
+      import('@/views/system-operations/yktsjs/GlobeSatelliteView.vue'),
+    meta: {
+      title: '3D卫星地球',
+      subsystem: '体系运营管理',
+      category: '运控态势监视',
+      icon: 'lucide:globe',
+      parentModule: '运控态势监视',
+      requiresAuth: true
+    }
+  },
 
   // 系统运维
   {
