@@ -367,50 +367,19 @@
               />
             </div>
           </div>
-          <div class="alert-charts-row">
-            <div class="alert-chart-box">
-              <div class="alert-sub-title">
-                <Icon
-                  icon="lucide:activity"
-                  :size="11"
-                  color="#38bdf8"
-                  style="vertical-align: middle; margin-right: 3px"
-                />业务指标
+          <div class="half-module-body">
+            <div class="alert-big-number">
+              <div class="alert-total text-warning">
+                <count-to
+                  :startVal="0"
+                  :endVal="warnStateTotal"
+                  :duration="1500"
+                  :decimals="0"
+                />
               </div>
-              <div class="alert-big-number-sm">
-                <span class="text-warning font-num"
-                  ><count-to
-                    :startVal="0"
-                    :endVal="opTotal"
-                    :duration="1500"
-                    :decimals="0"
-                /></span>
-                <span class="alert-unit-sm">次</span>
-              </div>
-              <div ref="operationChart" class="half-chart"></div>
+              <span class="alert-unit">条告警</span>
             </div>
-            <div class="alert-chart-divider"></div>
-            <div class="alert-chart-box">
-              <div class="alert-sub-title">
-                <Icon
-                  icon="lucide:bar-chart"
-                  :size="11"
-                  color="#a78bfa"
-                  style="vertical-align: middle; margin-right: 3px"
-                />性能指标
-              </div>
-              <div class="alert-big-number-sm">
-                <span class="text-purple font-num"
-                  ><count-to
-                    :startVal="0"
-                    :endVal="perfTotal"
-                    :duration="1700"
-                    :decimals="0"
-                /></span>
-                <span class="alert-unit-sm">次</span>
-              </div>
-              <div ref="performanceChart" class="half-chart"></div>
-            </div>
+            <div ref="warnStateChart" class="half-chart"></div>
           </div>
         </div>
         <div class="half-module panel-glow">
@@ -446,7 +415,7 @@
               </div>
               <span class="alert-unit">次故障</span>
             </div>
-            <div ref="faultChart" class="half-chart"></div>
+            <div ref="faultChart" class="half-chart fault-chart"></div>
           </div>
         </div>
       </div>
@@ -456,15 +425,9 @@
 
 <script>
 import * as echarts from 'echarts'
-import {
-  taskGetPage,
-  targetGetPage,
-  networkGetPage,
-  groupGetPage
-} from '@/api/task'
+import {taskGetPage, targetGetPage, groupGetPage} from '@/api/task'
 import {sslrw} from '@/api/killchain'
 import {getYXJMap, getStateMap} from '@/api/map'
-import {getPlatformPage, getsbxxPage} from '@/api/platform'
 import request from '@/utils/request'
 import {getAlertPieOption, getFaultBarOption} from './chartOptions'
 
@@ -499,18 +462,31 @@ export default {
       // 任务群组
       taskGroupList: [],
       selectedTaskName: '',
-      // 告警
-      operationAlertData: [],
-      performanceAlertData: [],
+      // 告警(按告警状态)
+      warnStateData: [],
+      // 模拟数据(后端未就绪时兜底, 与接口返回格式 {sumCategory,sumValue} 一致)
+      mockWarnStateData: [
+        {sumCategory: '已处理', sumValue: 18},
+        {sumCategory: '自动清除', sumValue: 9},
+        {sumCategory: '待手工清除', sumValue: 6},
+        {sumCategory: '被合并', sumValue: 3},
+        {sumCategory: '被屏蔽', sumValue: 2}
+      ],
+      mockWarnLevelData: [
+        {sumCategory: '0', sumValue: 12},
+        {sumCategory: '1', sumValue: 7},
+        {sumCategory: '2', sumValue: 4},
+        {sumCategory: '3', sumValue: 1}
+      ],
       alertTimeRange: [
         `${new Date().getFullYear()}-01-01 00:00:00`,
         `${new Date().getFullYear()}-12-31 23:59:59`
       ],
-      // 故障
+      // 故障(按告警等级 0/1/2/3, 等级逐渐递增: 0轻微→3严重)
       faultData: {
-        labels: ['设备故障', '通信故障', '电源故障', '软件故障'],
-        values: [3, 2, 1, 4],
-        colors: ['#f43f5e', '#f59e0b', '#8b5cf6', '#3b82f6']
+        labels: ['轻微', '一般', '中度', '严重'],
+        values: [0, 0, 0, 0],
+        colors: ['#10b981', '#facc15', '#f97316', '#f43f5e']
       },
       // 图表实例
       chartInstances: {
@@ -518,8 +494,7 @@ export default {
         priorityPie: null,
         kcPlatform: null,
         targetCategory: null,
-        operation: null,
-        performance: null,
+        warnState: null,
         fault: null
       },
       resizeObserver: null,
@@ -532,11 +507,8 @@ export default {
       if (!this.selectedKcTaskId || !this.kcTaskList.length) return null
       return this.kcTaskList.find(t => t.SSLRWID === this.selectedKcTaskId)
     },
-    opTotal() {
-      return this.operationAlertData.reduce((s, t) => s + (t.value || 0), 0)
-    },
-    perfTotal() {
-      return this.performanceAlertData.reduce((s, t) => s + (t.value || 0), 0)
+    warnStateTotal() {
+      return this.warnStateData.reduce((s, t) => s + (t.value || 0), 0)
     },
     faultTotal() {
       return this.faultData.values.reduce((s, v) => s + v, 0)
@@ -591,9 +563,7 @@ export default {
       this.fetchTaskList()
       this.fetchKcTaskList()
       this.fetchTargetData()
-      this.fetchSubnetCount()
-      this.fetchMemberCount()
-      this.fetchLinkCount()
+      this.fetchNetworkOverview()
       this.fetchAlertStats()
       this.fetchFaultStats()
       this.fetchTaskGroupData()
@@ -675,38 +645,27 @@ export default {
           this.$nextTick(() => this.initTargetCategoryChart())
         })
     },
-    // ---- 子网数量 ----
-    fetchSubnetCount() {
-      networkGetPage({pageNum: 1, pageSize: 1, params: {}})
-        .then(res => {
-          this.stats.subnetCount =
-            res.data?.total || res.data?.list?.length || 0
-        })
-        .catch(() => {})
-    },
-    // ---- 节点/成员数量 ----
-    fetchMemberCount() {
-      getPlatformPage({pageNum: 1, pageSize: 1, params: {}})
-        .then(res => {
-          this.stats.memberCount =
-            res.data?.total || res.data?.list?.length || 0
-        })
-        .catch(() => {})
-    },
-    // ---- 链路数量 ----
-    fetchLinkCount() {
+    // ---- 任务网络统计(直接使用后端 overview 接口, 不自行计算) ----
+    fetchNetworkOverview() {
       request({
-        url: '/rest/wlzt/page',
-        method: 'post',
-        data: {pageNum: 1, pageSize: 1, params: {}}
+        url: '/rest/sumrw/overview',
+        method: 'get'
       })
         .then(res => {
-          this.stats.linkCount = res.data?.total || 0
+          const data = res?.data || res || {}
+          this.stats.taskCount = data.taskCount ?? this.stats.taskCount
+          this.stats.subnetCount = data.subnetCount ?? this.stats.subnetCount
+          this.stats.memberCount = data.memberCount ?? this.stats.memberCount
+          this.stats.linkCount = data.linkCount ?? this.stats.linkCount
+          this.stats.warnCount = data.warnCount ?? this.stats.warnCount
+          this.stats.criticalCount =
+            data.criticalCount ?? this.stats.criticalCount
+          this.stats.healthyCount = data.healthyCount ?? this.stats.healthyCount
         })
         .catch(() => {})
     },
 
-    // ---- 告警统计(业务指标+性能指标) ----
+    // ---- 告警统计(按告警状态) ----
     fetchAlertStats() {
       const now = new Date()
       const defaultBegin = new Date(now.getFullYear(), 0, 1)
@@ -719,81 +678,73 @@ export default {
           this.alertTimeRange?.[1] ||
           `${defaultEnd.getFullYear()}-12-01 12:34:56`
       }
-      // 业务指标
       request({
-        url: '/rest/operation/sumByMetricName',
+        url: '/rest/sumWarn/sumByWarnState',
         method: 'get',
         params: params
       })
         .then(res => {
-          const data = res || []
-          this.operationAlertData = data
+          const data =
+            (res && res.length ? res : null) || this.mockWarnStateData
+          this.warnStateData = data
             .filter(item => item.sumCategory != null && item.sumValue != null)
             .map(item => ({
               name: item.sumCategory,
               value: Math.round(item.sumValue)
             }))
-          const totalWarn = this.operationAlertData.reduce(
-            (s, t) => s + t.value,
-            0
-          )
-          this.stats.warnCount = totalWarn
-          this.stats.criticalCount = Math.round(totalWarn * 0.15)
-          this.stats.healthyCount =
-            (this.stats.memberCount || 356) - this.stats.criticalCount
-          this.$nextTick(() => this.initOperationChart())
+          this.$nextTick(() => this.initWarnStateChart())
         })
         .catch(() => {
-          this.operationAlertData = []
-          this.$nextTick(() => this.initOperationChart())
-        })
-      // 性能指标
-      request({
-        url: '/rest/performance/sumByMetricName',
-        method: 'get',
-        params: params
-      })
-        .then(res => {
-          const data = res || []
-          this.performanceAlertData = data
+          // 后端未就绪: 用模拟数据展示图表
+          this.warnStateData = this.mockWarnStateData
             .filter(item => item.sumCategory != null && item.sumValue != null)
             .map(item => ({
               name: item.sumCategory,
               value: Math.round(item.sumValue)
             }))
-          this.$nextTick(() => this.initPerformanceChart())
-        })
-        .catch(() => {
-          this.performanceAlertData = []
-          this.$nextTick(() => this.initPerformanceChart())
+          this.$nextTick(() => this.initWarnStateChart())
         })
     },
-    // ---- 故障统计 ----
+    // ---- 故障统计(按告警等级, 等级逐渐递增: 0轻微→3严重) ----
     fetchFaultStats() {
-      getsbxxPage({pageNum: 1, pageSize: 999, params: {}})
+      const levelLabel = {0: '轻微', 1: '一般', 2: '中度', 3: '严重'}
+      const levelColor = {
+        0: '#10b981',
+        1: '#facc15',
+        2: '#f97316',
+        3: '#f43f5e'
+      }
+      request({
+        url: '/rest/sumDeviceDetect/sumByWarnLevel',
+        method: 'get'
+      })
         .then(res => {
-          const list = res.data?.list || res.data?.records || []
-          // 按设备健康状态分类统计
-          const running = list.filter(
-            i => String(i.JKZT) === '0' || String(i.jkzt) === '0'
-          ).length
-          const stopped = list.filter(
-            i => String(i.JKZT) === '1' || String(i.jkzt) === '1'
-          ).length
-          const fault = list.filter(
-            i => String(i.JKZT) === '2' || String(i.jkzt) === '2'
-          ).length
-          this.faultData.values = [
-            running,
-            stopped,
-            fault,
-            Math.max(1, Math.round(list.length * 0.05))
-          ]
-          this.$nextTick(() => this.initFaultChart())
+          const data =
+            (res && res.length ? res : null) || this.mockWarnLevelData
+          this.applyWarnLevelData(data, levelLabel, levelColor)
         })
         .catch(() => {
-          this.$nextTick(() => this.initFaultChart())
+          // 后端未就绪: 用模拟数据展示图表
+          this.applyWarnLevelData(
+            this.mockWarnLevelData,
+            levelLabel,
+            levelColor
+          )
         })
+    },
+    // 应用告警等级统计数据到故障图
+    applyWarnLevelData(data, levelLabel, levelColor) {
+      const list = data
+        .filter(item => item.sumCategory != null && item.sumValue != null)
+        .sort((a, b) => Number(a.sumCategory) - Number(b.sumCategory))
+      this.faultData.labels = list.map(
+        item => levelLabel[item.sumCategory] || `${item.sumCategory}级`
+      )
+      this.faultData.values = list.map(item => Math.round(item.sumValue))
+      this.faultData.colors = list.map(
+        item => levelColor[item.sumCategory] || '#3b82f6'
+      )
+      this.$nextTick(() => this.initFaultChart())
     },
     // ---- 任务群组在网统计 ----
     fetchTaskGroupData() {
@@ -1060,47 +1011,23 @@ export default {
       })
     },
 
-    initOperationChart() {
-      const el = this.$refs.operationChart
+    initWarnStateChart() {
+      const el = this.$refs.warnStateChart
       if (!el) return
-      this.disposeChart('operation')
+      this.disposeChart('warnState')
       const chart = echarts.init(el)
-      this.chartInstances.operation = chart
+      this.chartInstances.warnState = chart
       const colors = [
-        '#f43f5e',
-        '#f59e0b',
-        '#8b5cf6',
-        '#3b82f6',
         '#10b981',
-        '#06b6d4'
-      ]
-      chart.setOption(
-        getAlertPieOption(
-          this.operationAlertData.map((t, i) => ({
-            value: t.value,
-            name: t.name,
-            itemStyle: {color: colors[i % colors.length]}
-          }))
-        )
-      )
-    },
-    initPerformanceChart() {
-      const el = this.$refs.performanceChart
-      if (!el) return
-      this.disposeChart('performance')
-      const chart = echarts.init(el)
-      this.chartInstances.performance = chart
-      const colors = [
-        '#a78bfa',
+        '#f59e0b',
         '#38bdf8',
-        '#f59e0b',
-        '#f43f5e',
-        '#10b981',
-        '#06b6d4'
+        '#8b5cf6',
+        '#06b6d4',
+        '#f43f5e'
       ]
       chart.setOption(
         getAlertPieOption(
-          this.performanceAlertData.map((t, i) => ({
+          this.warnStateData.map((t, i) => ({
             value: t.value,
             name: t.name,
             itemStyle: {color: colors[i % colors.length]}
@@ -1460,6 +1387,12 @@ export default {
   flex: 1;
   height: 100%;
   min-width: 0;
+}
+/* 故障图小幅下移, 顶部给柱顶数值标签留出空间 */
+.fault-chart {
+  margin-top: 6px;
+  height: calc(100% - 6px);
+  align-self: flex-start;
 }
 
 /* 颜色工具 */

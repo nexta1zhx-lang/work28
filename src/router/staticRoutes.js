@@ -161,6 +161,7 @@ const staticRoutes = [
       category: '综合调度管理',
       icon: 'lucide:gantt-chart',
       isModule: false,
+      isVisible: false,
       requiresAuth: true
     }
   },
@@ -175,6 +176,7 @@ const staticRoutes = [
       category: '综合调度管理',
       icon: 'lucide:activity',
       parentModule: '综合调度管理',
+      isVisible: false,
       requiresAuth: true
     }
   },
@@ -189,6 +191,7 @@ const staticRoutes = [
       category: '综合调度管理',
       icon: 'lucide:users',
       parentModule: '综合调度管理',
+      isVisible: false,
       requiresAuth: true
     }
   },
@@ -203,6 +206,7 @@ const staticRoutes = [
       category: '综合调度管理',
       icon: 'lucide:git-merge',
       parentModule: '综合调度管理',
+      isVisible: false,
       requiresAuth: true
     }
   },
@@ -217,6 +221,7 @@ const staticRoutes = [
       category: '综合调度管理',
       icon: 'lucide:wrench',
       parentModule: '综合调度管理',
+      isVisible: false,
       requiresAuth: true
     }
   },

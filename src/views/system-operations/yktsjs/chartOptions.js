@@ -94,10 +94,10 @@ export const getFaultBarOption = data => ({
     textStyle: {color: '#cbd5e1', fontSize: 11}
   },
   grid: {
-    top: '10%',
-    bottom: '20%',
-    left: '12%',
-    right: '10%',
+    top: 24,
+    bottom: 6,
+    left: 6,
+    right: 6,
     containLabel: true
   },
   xAxis: {

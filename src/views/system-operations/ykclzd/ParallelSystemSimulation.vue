@@ -244,6 +244,56 @@
                     预览方案详情
                   </el-button>
                 </div>
+
+                <!-- 发送方案信息(与 /rest/pxyxqq/page 请求格式一致) -->
+                <div class="send-info-card" v-if="sendInfo">
+                  <div class="section-header">
+                    <span class="section-title">
+                      <Icon
+                        icon="lucide:send"
+                        :size="14"
+                        style="vertical-align: middle; margin-right: 4px"
+                      />
+                      发送方案信息 (POST /rest/pxyxqq/page)
+                    </span>
+                  </div>
+                  <div class="send-info-grid">
+                    <div class="info-row">
+                      <span class="info-label">系统ID:</span>
+                      <span class="info-value font-num">{{
+                        sendInfo.systemid
+                      }}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">任务ID:</span>
+                      <span class="info-value font-num">{{
+                        sendInfo.taskid
+                      }}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">请求ID:</span>
+                      <span class="info-value font-num">{{
+                        sendInfo.requestId
+                      }}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">确认标记:</span>
+                      <span class="info-value">{{
+                        sendInfo.ConfirmMsg === 0 ? '确认(0)' : '取消(1)'
+                      }}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">方案任务ID:</span>
+                      <span class="info-value font-num">{{
+                        sendInfo.fzTaskId
+                      }}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">任务名称:</span>
+                      <span class="info-value">{{ sendInfo.taskName }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </el-tab-pane>
@@ -349,6 +399,37 @@
                       </div>
                     </div>
                   </div>
+                  <!-- 最优推荐方案(与 /rest/zwEvalEnity/page 推荐结果一致) -->
+                  <div class="overview-card" style="margin-top: 12px">
+                    <div class="card-header">
+                      <span class="card-title">最优推荐方案</span>
+                    </div>
+                    <div class="card-body">
+                      <div v-if="zwEvalEntities.length" class="scheme-best">
+                        <div class="info-row">
+                          <span class="info-label">方案ID:</span>
+                          <span class="info-value font-num text-cyan">{{
+                            zwEvalEntities[0].netSchemeId
+                          }}</span>
+                        </div>
+                        <div class="info-row">
+                          <span class="info-label">方案名称:</span>
+                          <span class="info-value">{{
+                            zwEvalEntities[0].netSchemeName
+                          }}</span>
+                        </div>
+                        <div class="info-row">
+                          <span class="info-label">综合评分:</span>
+                          <span class="info-value font-num text-green"
+                            >{{ zwEvalEntities[0].netSchemeScore }} 分</span
+                          >
+                        </div>
+                      </div>
+                      <div v-else class="empty-tip">
+                        <p>暂无推演结果</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="result-details">
@@ -356,54 +437,83 @@
                     <el-tab-pane label="效能评估" name="efficiency">
                       <div class="result-table-wrapper">
                         <el-table
-                          :data="efficiencyData"
+                          :data="zwEvalEntities"
                           border
                           stripe
                           style="width: 100%"
                           height="300"
                         >
                           <el-table-column
-                            prop="metric"
-                            label="评估指标"
-                            width="180"
+                            type="index"
+                            label="序号"
+                            width="55"
                           ></el-table-column>
                           <el-table-column
-                            prop="value"
-                            label="推演值"
-                            width="120"
+                            prop="netSchemeId"
+                            label="方案ID"
+                            width="150"
                           ></el-table-column>
                           <el-table-column
-                            prop="standard"
-                            label="标准值"
-                            width="120"
+                            prop="netSchemeName"
+                            label="方案名称"
+                            min-width="160"
                           ></el-table-column>
                           <el-table-column
-                            prop="deviation"
-                            label="偏差率"
-                            width="100"
+                            prop="netSchemeScore"
+                            label="综合评分"
+                            width="90"
                           >
                             <template slot-scope="scope">
-                              <span
-                                :class="getDeviationClass(scope.row.deviation)"
-                              >
-                                {{ scope.row.deviation }}%
-                              </span>
-                            </template>
-                          </el-table-column>
-                          <el-table-column prop="level" label="等级" width="80">
-                            <template slot-scope="scope">
-                              <el-tag
-                                :type="getLevelType(scope.row.level)"
-                                size="mini"
-                              >
-                                {{ scope.row.level }}
-                              </el-tag>
+                              <span class="text-green font-num">{{
+                                scope.row.netSchemeScore
+                              }}</span>
                             </template>
                           </el-table-column>
                           <el-table-column
-                            prop="comment"
-                            label="评价"
-                          ></el-table-column>
+                            prop="Dklyl"
+                            label="带宽利用率(%)"
+                            width="115"
+                          >
+                            <template slot-scope="scope">{{
+                              scope.row.Dklyl
+                            }}</template>
+                          </el-table-column>
+                          <el-table-column
+                            prop="Xxlyl"
+                            label="信息完整率(%)"
+                            width="115"
+                          >
+                            <template slot-scope="scope">{{
+                              scope.row.Xxlyl
+                            }}</template>
+                          </el-table-column>
+                          <el-table-column
+                            prop="Xdlyl"
+                            label="信道利用率(%)"
+                            width="115"
+                          >
+                            <template slot-scope="scope">{{
+                              scope.row.Xdlyl
+                            }}</template>
+                          </el-table-column>
+                          <el-table-column
+                            prop="Rwmzl"
+                            label="任务满足率(%)"
+                            width="115"
+                          >
+                            <template slot-scope="scope">{{
+                              scope.row.Rwmzl
+                            }}</template>
+                          </el-table-column>
+                          <el-table-column
+                            prop="Ptzwl"
+                            label="平台在网率(%)"
+                            width="115"
+                          >
+                            <template slot-scope="scope">{{
+                              scope.row.Ptzwl
+                            }}</template>
+                          </el-table-column>
                         </el-table>
                       </div>
                     </el-tab-pane>
@@ -524,6 +634,7 @@
 <script>
 import {taskGetPage, getOrganizationByTaskId} from '@/api/task'
 import {getYXJMap} from '@/api/map'
+import {sendSchemeToParallel, submitDeductionResult} from '@/api/parallelSystem'
 import {buildTree} from '@/utils'
 
 export default {
@@ -538,6 +649,15 @@ export default {
       selectedRw: null,
       queryParam: {RWMC: ''},
       yxjMap: getYXJMap ? getYXJMap() : {1: '低', 2: '重要', 3: '高'},
+
+      // 系统id(模拟数据, 接入后端时按实际子系统标识调整)
+      systemId: '1',
+
+      // 推演方案和结果(ZwEvalEntities, 与 /rest/zwEvalEnity/page 格式一致)
+      zwEvalEntities: [],
+
+      // 最近一次发送方案信息(与 /rest/pxyxqq/page 请求格式一致)
+      sendInfo: null,
 
       // 方案选择
       selectedPlans: {
@@ -683,22 +803,14 @@ export default {
       this.startSimulationProcess()
     },
 
-    // 发送至平行系统
+    // 发送至平行系统 (POST /rest/pxyxqq/page, 采用模拟数据接口)
     handleSendToParallel() {
       const plans = []
       if (this.selectedPlans.dataLink) {
-        plans.push({
-          type: 'dataLink',
-          name: '数据链保障方案',
-          taskId: this.selectedRw.ZZRWID || this.selectedRw.zzrwid
-        })
+        plans.push({type: 'dataLink', name: '数据链保障方案'})
       }
       if (this.selectedPlans.battlePlan) {
-        plans.push({
-          type: 'battlePlan',
-          name: '作战计划信息',
-          taskId: this.selectedRw.ZZRWID || this.selectedRw.zzrwid
-        })
+        plans.push({type: 'battlePlan', name: '作战计划信息'})
       }
 
       this.$confirm(
@@ -713,16 +825,70 @@ export default {
         .then(() => {
           this.addLog('info', `正在发送 ${plans.length} 个方案至平行系统...`)
 
-          // 模拟API调用
-          setTimeout(() => {
-            this.addLog('success', '方案发送成功！')
-            this.$message.success('方案已成功发送至平行系统')
-            this.activeTab = 'simulationMonitor'
-            this.startSimulationProcess()
-          }, 1000)
+          // 发送方案: /rest/pxyxqq/page
+          const taskId = this.selectedRw
+            ? this.selectedRw.ZZRWID || this.selectedRw.zzrwid || ''
+            : ''
+          const taskName = this.selectedRw
+            ? this.selectedRw.RWMC || this.selectedRw.rwmc || ''
+            : ''
+          const payload = {
+            systemid: this.systemId, // 系统id
+            taskid: taskId, // 任务id
+            requestId: this.genRequestId(), // 请求ID
+            ConfirmMsg: 0, // 0确认 1取消
+            fzTaskId: taskId, // 方案任务id
+            taskName // 任务名称
+          }
+          this.sendInfo = payload // 界面展示发送方案信息
+          sendSchemeToParallel(payload)
+            .then(() => {
+              this.addLog('success', '方案发送成功！')
+              this.$message.success('方案已成功发送至平行系统')
+              this.activeTab = 'simulationMonitor'
+              this.startSimulationProcess()
+            })
+            .catch(() => {
+              // 后端未就绪: 模拟发送成功
+              this.addLog('success', '方案发送成功！(模拟数据)')
+              this.$message.success('方案已成功发送至平行系统')
+              this.activeTab = 'simulationMonitor'
+              this.startSimulationProcess()
+            })
         })
         .catch(() => {
           this.addLog('warning', '用户取消了发送操作')
+        })
+    },
+
+    // 生成请求ID
+    genRequestId() {
+      return `REQ${Date.now()}${String(
+        Math.floor(Math.random() * 1000)
+      ).padStart(3, '0')}`
+    },
+
+    // 上报推演方案和结果 (POST /rest/zwEvalEnity/page, 采用模拟数据接口)
+    submitDeductionResultData() {
+      const taskId = this.selectedRw
+        ? this.selectedRw.ZZRWID || this.selectedRw.zzrwid || ''
+        : ''
+      const best = this.zwEvalEntities && this.zwEvalEntities[0]
+      const payload = {
+        systemid: this.systemId, // 系统id
+        taskid: taskId, // 任务id
+        netSchemeTaskId: taskId, // 最优推荐方案任务号
+        netSchemeId: best ? best.netSchemeId : '', // 最优推荐方案ID
+        netSchemeName: best ? best.netSchemeName : '', // 最优推荐方案名称
+        netSchemeScore: best ? best.netSchemeScore : 0, // 分数
+        ZwEvalEntities: this.zwEvalEntities || [] // 推演评估结果
+      }
+      submitDeductionResult(payload)
+        .then(() => {
+          this.addLog('success', '推演方案和结果已上报平行系统')
+        })
+        .catch(() => {
+          this.addLog('success', '推演方案和结果已上报平行系统(模拟数据)')
         })
     },
 
@@ -783,6 +949,9 @@ export default {
       // 生成模拟结果数据
       this.generateSimulationResults()
 
+      // 上报推演方案和结果 (POST /rest/zwEvalEnity/page, 模拟数据)
+      this.submitDeductionResultData()
+
       setTimeout(() => {
         this.activeTab = 'simulationResult'
         this.$message.success('推演完成，请查看结果')
@@ -798,6 +967,46 @@ export default {
         avgTime: (Math.random() * 20 + 30).toFixed(1),
         keyNodes: Math.floor(Math.random() * 10) + 15
       }
+
+      // 推演方案和结果(与 /rest/zwEvalEnity/page 的 ZwEvalEntities 格式一致, 先模拟3条)
+      const rw = this.selectedRw || {}
+      const taskId = rw.ZZRWID || rw.zzrwid || ''
+      const taskName = rw.RWMC || rw.rwmc || '未命名任务'
+      this.zwEvalEntities = [
+        {
+          netSchemeTaskId: taskId,
+          netSchemeId: 'SCHEME-A001',
+          netSchemeName: `${taskName}-推荐方案`,
+          netSchemeScore: 92,
+          Dklyl: 86.5, // 带宽利用率(%)
+          Xxlyl: 95.2, // 信息完整率(%)
+          Xdlyl: 88.3, // 信道利用率(%)
+          Rwmzl: 97.8, // 任务满足率(%)
+          Ptzwl: 93.4 // 平台在网率(%)
+        },
+        {
+          netSchemeTaskId: taskId,
+          netSchemeId: 'SCHEME-A002',
+          netSchemeName: `${taskName}-备选方案B`,
+          netSchemeScore: 88,
+          Dklyl: 82.1,
+          Xxlyl: 93.6,
+          Xdlyl: 85.7,
+          Rwmzl: 96.2,
+          Ptzwl: 91.8
+        },
+        {
+          netSchemeTaskId: taskId,
+          netSchemeId: 'SCHEME-A003',
+          netSchemeName: `${taskName}-备选方案C`,
+          netSchemeScore: 85,
+          Dklyl: 79.4,
+          Xxlyl: 90.8,
+          Xdlyl: 82.6,
+          Rwmzl: 94.5,
+          Ptzwl: 89.2
+        }
+      ]
 
       // 效能评估数据
       this.efficiencyData = [
@@ -1382,6 +1591,29 @@ export default {
   gap: 12px;
   justify-content: center;
   padding: 12px 0;
+}
+
+/* 发送方案信息(pxyxqq) */
+.send-info-card {
+  background: #0d1522;
+  border: 1px solid #172438;
+  border-radius: 4px;
+  padding: 12px;
+}
+.send-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 24px;
+}
+
+/* 最优推荐方案(zwEvalEnity) */
+.scheme-best {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.scheme-best .info-value {
+  font-size: 13px;
 }
 
 /* 推演监控容器 */

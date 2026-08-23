@@ -24,6 +24,71 @@
               </div>
             </div>
 
+            <!-- 顶部系统级菜单栏：三个系统级菜单，顶部居中，悬停显示子菜单 -->
+            <nav class="sys-nav-bar" v-if="systemMenus.length">
+              <div
+                v-for="sysMenu in systemMenus"
+                :key="sysMenu.title"
+                class="sys-nav-item"
+                :class="{active: activeNavMenu === sysMenu.title}"
+                @mouseenter="activeNavMenu = sysMenu.title"
+                @mouseleave="activeNavMenu = ''"
+              >
+                <div class="sys-nav-trigger">
+                  <Icon :icon="sysMenu.icon" :size="15" />
+                  <span class="sys-nav-name">{{ sysMenu.title }}</span>
+                  <Icon
+                    icon="lucide:chevron-down"
+                    :size="12"
+                    class="sys-nav-arrow"
+                  />
+                </div>
+
+                <transition name="nav-drop">
+                  <div
+                    v-show="activeNavMenu === sysMenu.title"
+                    class="sys-nav-panel"
+                  >
+                    <div
+                      v-for="cat in sysMenu.categories"
+                      :key="cat.title"
+                      class="sys-nav-col"
+                    >
+                      <div class="sys-nav-col-title">{{ cat.title }}</div>
+                      <div
+                        v-for="mod in cat.modules"
+                        :key="mod.path"
+                        class="sys-nav-link"
+                        :class="{current: $route.path === mod.path}"
+                        @click="navigateToMenu(mod.path)"
+                      >
+                        <Icon
+                          :icon="mod.meta.icon || 'lucide:box'"
+                          :size="13"
+                          class="sys-nav-link-icon"
+                        />
+                        <span>{{ mod.meta.title }}</span>
+                      </div>
+                      <div
+                        v-for="sub in cat.subs"
+                        :key="sub.path"
+                        class="sys-nav-link sub"
+                        :class="{current: $route.path === sub.path}"
+                        @click="navigateToMenu(sub.path)"
+                      >
+                        <Icon
+                          :icon="sub.meta.icon || 'lucide:file-text'"
+                          :size="12"
+                          class="sys-nav-link-icon"
+                        />
+                        <span>{{ sub.meta.title }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </transition>
+              </div>
+            </nav>
+
             <div class="system-info">
               <span class="time">
                 {{ currentTime }}
@@ -121,7 +186,10 @@ export default {
       showAlertNotification: false,
       alertNotificationCount: 0,
       latestAlertInfo: null,
-      alertCheckTimer: null
+      alertCheckTimer: null,
+
+      // 当前展开的系统级菜单(顶部菜单栏悬停显示)
+      activeNavMenu: ''
     }
   },
 
@@ -143,6 +211,51 @@ export default {
 
     useBackendRoutes() {
       return localStorage.getItem('useBackendRoutes') === 'true'
+    },
+
+    // 顶部系统级菜单(由路由 meta 动态生成: 子系统 -> 分类 -> 页面)
+    systemMenus() {
+      const subsystems = [
+        {title: '体系运营管理', icon: 'lucide:layers'},
+        {title: '资源和数据管理', icon: 'lucide:database'},
+        {title: '系统运维', icon: 'lucide:wrench'}
+      ]
+      const routes = this.$router.getRoutes()
+      return subsystems.map(sys => {
+        const categories = []
+        routes.forEach(route => {
+          if (
+            route.meta &&
+            route.meta.isVisible !== false &&
+            route.meta.subsystem === sys.title &&
+            route.meta.category &&
+            !categories.includes(route.meta.category)
+          ) {
+            categories.push(route.meta.category)
+          }
+        })
+        return {
+          title: sys.title,
+          icon: sys.icon,
+          categories: categories.map(cat => ({
+            title: cat,
+            modules: routes.filter(
+              route =>
+                route.meta &&
+                route.meta.isVisible !== false &&
+                route.meta.subsystem === sys.title &&
+                route.meta.category === cat &&
+                route.meta.isModule
+            ),
+            subs: routes.filter(
+              route =>
+                route.meta &&
+                route.meta.isVisible !== false &&
+                route.meta.parentModule === cat
+            )
+          }))
+        }
+      })
     }
   },
 
@@ -198,6 +311,12 @@ export default {
         minute: '2-digit',
         second: '2-digit'
       })
+    },
+
+    navigateToMenu(path) {
+      if (this.$route.path === path) return
+      this.activeNavMenu = ''
+      this.$router.push(path)
     },
 
     logout() {
@@ -381,18 +500,169 @@ body {
 .system-header {
   height: 56px;
   padding: 0 18px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   background: rgba(10, 15, 30, 0.96);
   border-bottom: 1px solid rgba(0, 243, 255, 0.18);
   flex-shrink: 0;
+}
+
+/* ========== 顶部系统级菜单栏(顶部居中) ========== */
+.sys-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-self: center;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(0, 243, 255, 0.06);
+  border: 1px solid rgba(0, 243, 255, 0.14);
+  border-radius: 10px;
+  position: relative;
+  z-index: 20000;
+}
+
+.sys-nav-item {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sys-nav-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+
+.sys-nav-item:hover .sys-nav-trigger,
+.sys-nav-item.active .sys-nav-trigger {
+  color: #7cecff;
+  background: rgba(0, 243, 255, 0.08);
+}
+
+.sys-nav-name {
+  white-space: nowrap;
+}
+
+.sys-nav-arrow {
+  color: #64748b;
+  transition: transform 0.2s;
+}
+
+.sys-nav-item.active .sys-nav-arrow {
+  transform: rotate(180deg);
+  color: #7cecff;
+}
+
+.sys-nav-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(1100px, calc(100vw - 24px));
+  z-index: 99999;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 12px 14px 14px;
+  min-width: 360px;
+  max-width: 900px;
+  max-height: 72vh;
+  overflow-y: auto;
+  background: rgba(11, 18, 32, 0.98);
+  border: 1px solid rgba(0, 243, 255, 0.2);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+.sys-nav-col {
+  min-width: 200px;
+  max-width: 240px;
+  flex: 1;
+  padding: 6px 10px 4px;
+  border-right: 1px solid rgba(0, 243, 255, 0.08);
+}
+
+.sys-nav-col:last-child {
+  border-right: none;
+}
+
+.sys-nav-col-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7cecff;
+  padding: 4px 8px 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.1);
+  white-space: nowrap;
+}
+
+.sys-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.sys-nav-link:hover {
+  background: rgba(0, 243, 255, 0.1);
+  color: #f1f5f9;
+}
+
+.sys-nav-link.current {
+  color: #7cecff;
+  background: rgba(0, 243, 255, 0.12);
+}
+
+.sys-nav-link.sub {
+  padding-left: 24px;
+  color: #94a3b8;
+}
+
+.sys-nav-link.sub:hover {
+  color: #7cecff;
+}
+
+.sys-nav-link-icon {
+  flex-shrink: 0;
+}
+
+/* 菜单下拉过渡(仅透明度，避免与水平居中 transform 冲突) */
+.nav-drop-enter-active,
+.nav-drop-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.nav-drop-enter,
+.nav-drop-leave-to {
+  opacity: 0;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 16px;
+  justify-self: start;
 }
 
 .header-page-title {
@@ -408,6 +678,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
+  justify-self: end;
 }
 
 .time {
