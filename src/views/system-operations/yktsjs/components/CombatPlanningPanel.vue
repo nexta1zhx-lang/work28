@@ -47,26 +47,37 @@
                 暂无编成数据
               </div>
               <div v-else class="cp-tab-body">
-                <div
-                  v-for="(p, i) in activeFormation"
-                  :key="p.ZZRWPTID || p.zzrwptid || i"
-                  class="cp-row-item"
+                <el-tree
+                  ref="formationTree"
+                  class="cp-tree"
+                  :data="formationTree"
+                  node-key="key"
+                  :props="{label: 'label', children: 'children'}"
+                  default-expand-all
+                  highlight-current
+                  @node-click="handleFormationNodeClick"
                 >
-                  <div class="cp-row-main">
-                    <div class="cp-row-name">{{ p.PTMC || p.ptmc }}</div>
-                    <div class="cp-row-sub">
-                      {{ p.PTXHMC || p.ptxhmc || '未知型号' }}
-                      <template v-if="ptLon(p) != null && ptLat(p) != null">
-                        · 经度{{ (+ptLon(p)).toFixed(1) }} 纬度{{
-                          (+ptLat(p)).toFixed(1)
-                        }}</template
-                      >
-                      <template v-if="ptH(p) != null">
-                        · 高度{{ ptH(p) }}m</template
-                      >
-                    </div>
-                  </div>
-                </div>
+                  <span slot-scope="{data}" class="cp-tree-node">
+                    <i
+                      v-if="
+                        data.pt &&
+                        (data.pt.PTJD != null || data.pt.ptjd != null)
+                      "
+                      class="cp-tree-ico el-icon-location-outline"
+                    ></i>
+                    <span class="cp-tree-name">{{ data.label }}</span>
+                    <span
+                      v-if="
+                        data.pt &&
+                        (data.pt.PTJD != null || data.pt.ptjd != null)
+                      "
+                      class="cp-tree-sub"
+                    >
+                      {{ (+ptLon(data.pt)).toFixed(1) }},
+                      {{ (+ptLat(data.pt)).toFixed(1) }}
+                    </span>
+                  </span>
+                </el-tree>
               </div>
             </el-tab-pane>
 
@@ -92,7 +103,7 @@
                   <i class="el-icon-guide cp-row-ico"></i>
                   <div class="cp-row-main">
                     <div class="cp-row-name">
-                      {{ r.routeName || r.RWMC || '未命名路线' }}
+                      {{ routeName(r) }}
                     </div>
                     <div class="cp-row-sub">
                       {{ r.typeName || '—' }} · 转向点{{
@@ -275,6 +286,31 @@ export default {
     activeFormationLoading() {
       return !!(this.currentEntry && this.currentEntry.formationLoading)
     },
+    /** 编成编组 -> 树结构（按 PARENTPTMC 父子关系） */
+    formationTree() {
+      const list = this.activeFormation
+      if (!list.length) return []
+      const childrenMap = {}
+      list.forEach(p => {
+        const key = p.PTMC || p.ptmc
+        if (!childrenMap[key]) childrenMap[key] = []
+      })
+      list.forEach(p => {
+        const parent = p.PARENTPTMC || p.parentptmc
+        if (parent && childrenMap[parent]) childrenMap[parent].push(p)
+      })
+      const roots = list.filter(p => {
+        const parent = p.PARENTPTMC || p.parentptmc
+        return !parent || !childrenMap[parent]
+      })
+      const toNode = p => ({
+        key: String(p.PTID ?? p.ptid ?? p.PTMC ?? p.ptmc),
+        label: p.PTMC || p.ptmc || '未命名',
+        pt: p,
+        children: (childrenMap[p.PTMC || p.ptmc] || []).map(toNode)
+      })
+      return roots.map(toNode)
+    },
     activeRoutesLoading() {
       return !!(this.currentEntry && this.currentEntry.routesLoading)
     },
@@ -373,25 +409,30 @@ export default {
     ptH(p) {
       return p.PTGD != null ? p.PTGD : p.ptgd
     },
-    /** 点位悬浮提示：名称 + 经度 + 纬度 + 高度（JD/WD/GD 字段） */
-    pointTip(name, p) {
+    /** 点位悬浮提示：任务名 + 名称 + 经度 + 纬度 + 高度（JD/WD/GD 字段） */
+    pointTip(name, p, task) {
       const info = []
       if (p.JD != null) info.push(`经度${(+p.JD).toFixed(1)}`)
       if (p.WD != null) info.push(`纬度${(+p.WD).toFixed(1)}`)
       if (p.GD != null) info.push(`高度${p.GD}m`)
+      const tName = task ? task.RWMC || task.rwmc : ''
+      // 任务名为标题（块级），点名为首行信息；无任务名时点名为标题
+      if (tName) info.unshift(name)
       // 标题为块级（b{display:block}），其后的信息行无需再补 <br/>，避免空行造成间距过大
-      return `<b>${name}</b>` + (info.length ? info.join('<br/>') : '')
+      return `<b>${tName || name}</b>` + (info.length ? info.join('<br/>') : '')
     },
-    /** 转向点悬浮提示（pointName 点名称） */
-    routePointTip(p) {
+    /** 转向点悬浮提示（直接显示点名称） */
+    routePointTip(p, task) {
       const name =
-        p.pointName || (p.pointIndex != null ? '转向点' + p.pointIndex : '')
-      return this.pointTip(name, p)
+        p.pointName ||
+        p.WZDMC ||
+        (p.pointIndex != null ? '转向点' + p.pointIndex : '')
+      return this.pointTip(name, p, task)
     },
     /** 区域点悬浮提示（WZDMC 点名称） */
-    areaPointTip(p) {
+    areaPointTip(p, task) {
       const name = p.WZDMC || '区域点' + (p.WZDXH != null ? p.WZDXH : '')
-      return this.pointTip(name, p)
+      return this.pointTip(name, p, task)
     },
     /** 开始时间（毫秒 -> MM-DD HH:mm） */
     startTime(t) {
@@ -586,32 +627,102 @@ export default {
         const d = this.taskDataCache[this.taskId(t)]
         if (!d) return
         const color = this.taskColor(t)
-        if (this.showFormation) this.renderFormation(d.formation)
-        if (this.showRoutes) this.renderRoutes(d.routes, d.routePointMap, color)
-        if (this.showAreas) this.renderAreas(d.areas, d.areaPoints, color)
+        if (this.showFormation) this.renderFormation(d.formation, color, t)
+        if (this.showRoutes)
+          this.renderRoutes(d.routes, d.routePointMap, color, t)
+        if (this.showAreas) this.renderAreas(d.areas, d.areaPoints, color, t)
       })
     },
 
-    renderFormation(list) {
+    renderFormation(list, color, task) {
       const g = this.formationLayer
       if (!g) return
+      const latlngs = []
       list.forEach(p => {
         const lon = Number(p.PTJD ?? p.ptjd)
         const lat = Number(p.PTWD ?? p.ptwd)
         if (isNaN(lon) || isNaN(lat)) return
+        latlngs.push([lat, lon])
         const name = p.PTMC || p.ptmc || ''
-        const color = this.ptColor(p)
+        const pcolor = this.ptColor(p)
         const icon = L.divIcon({
           className: 'cp-pt-icon',
-          html: `<div class="cp-pt"><span class="cp-pt-dot" style="background:${color}"></span><span class="cp-pt-label">${name}</span></div>`,
+          html: `<div class="cp-pt"><span class="cp-pt-dot" style="background:${pcolor}"></span><span class="cp-pt-label">${name}</span></div>`,
           iconSize: [96, 20],
           iconAnchor: [4, 4]
         })
-        L.marker([lat, lon], {icon, interactive: false}).addTo(g)
+        L.marker([lat, lon], {icon, interactive: true})
+          .bindTooltip(this.taskTip(task, name), {
+            direction: 'top',
+            offset: [0, -6],
+            className: 'cp-tooltip',
+            opacity: 0.95
+          })
+          .addTo(g)
       })
+      // 任务名称标签（显示在编成范围中心）
+      const taskName = (task && (task.RWMC || task.rwmc)) || ''
+      if (taskName && latlngs.length) {
+        const center = L.latLngBounds(latlngs).getCenter()
+        const icon = L.divIcon({
+          className: 'cp-task-icon',
+          html: `<div class="cp-task" style="color:${color};border-color:${color}">${taskName}</div>`,
+          iconSize: [220, 26],
+          iconAnchor: [110, 13]
+        })
+        L.marker([center.lat, center.lng], {icon, interactive: false}).addTo(g)
+      }
     },
 
-    renderRoutes(routes, rpMap, color) {
+    /** 点击编成树节点：有坐标则定位点位，无坐标则缩放到子节点范围 */
+    handleFormationNodeClick(data) {
+      if (!data || !data.pt) return
+      const p = data.pt
+      const lon = Number(p.PTJD ?? p.ptjd)
+      const lat = Number(p.PTWD ?? p.ptwd)
+      if (!isNaN(lon) && !isNaN(lat)) {
+        this.map.setView([lat, lon], Math.max(this.map.getZoom(), 9))
+      } else {
+        const coords = this.collectChildCoords(data)
+        if (coords.length) {
+          this.map.fitBounds(L.latLngBounds(coords), {padding: [40, 40]})
+        }
+      }
+    },
+    collectChildCoords(node) {
+      const out = []
+      const walk = n => {
+        if (!n) return
+        if (n.pt) {
+          const lon = Number(n.pt.PTJD ?? n.pt.ptjd)
+          const lat = Number(n.pt.PTWD ?? n.pt.ptwd)
+          if (!isNaN(lon) && !isNaN(lat)) out.push([lat, lon])
+        }
+        ;(n.children || []).forEach(walk)
+      }
+      walk(node)
+      return out
+    },
+    /** 触碰提示前缀：显示作战任务名 */
+    taskTip(task, body) {
+      const tName = task ? task.RWMC || task.rwmc : ''
+      return tName ? `<b>${tName}</b>${body}` : body
+    },
+
+    /** 路线名称（兼容多种字段名，优先 routeName） */
+    routeName(r) {
+      return (
+        r.routeName ||
+        r.ROUTENAME ||
+        r.routename ||
+        r.LUXMC ||
+        r.luxmc ||
+        r.RWMC ||
+        '未命名路线'
+      )
+    },
+
+    renderRoutes(routes, rpMap, color, task) {
       const g = this.routeLayer
       if (!g) return
       routes.forEach(r => {
@@ -621,11 +732,32 @@ export default {
           .map(p => [Number(p.WD), Number(p.JD)])
           .filter(x => !isNaN(x[0]) && !isNaN(x[1]))
         if (latlngs.length >= 2) {
+          const name = this.routeName(r)
           L.polyline(latlngs, {
             color,
             weight: 2.2,
             opacity: 0.95,
             dashArray: '6 4'
+          })
+            .bindTooltip(this.taskTip(task, name), {
+              direction: 'top',
+              offset: [0, -6],
+              className: 'cp-tooltip',
+              opacity: 0.95
+            })
+            .addTo(g)
+
+          // 路线名称标签（显示在折线范围中心）
+          const center = L.latLngBounds(latlngs).getCenter()
+          const rIcon = L.divIcon({
+            className: 'cp-rt-icon',
+            html: `<div class="cp-rt" style="color:${color};border-color:${color}">${name}</div>`,
+            iconSize: [180, 22],
+            iconAnchor: [90, 11]
+          })
+          L.marker([center.lat, center.lng], {
+            icon: rIcon,
+            interactive: false
           }).addTo(g)
         }
         pts.forEach(p => {
@@ -639,7 +771,7 @@ export default {
             iconAnchor: [9, 9]
           })
           L.marker([lat, lon], {icon, interactive: true})
-            .bindTooltip(this.routePointTip(p), {
+            .bindTooltip(this.routePointTip(p, task), {
               direction: 'top',
               offset: [0, -6],
               className: 'cp-tooltip',
@@ -650,7 +782,7 @@ export default {
       })
     },
 
-    renderAreas(areas, areaPoints, color) {
+    renderAreas(areas, areaPoints, color, task) {
       const g = this.areaLayer
       if (!g) return
       areas.forEach(a => {
@@ -666,7 +798,13 @@ export default {
           opacity: 0.95,
           fillColor: color,
           fillOpacity: 0.16
-        }).addTo(g)
+        })
+          .bindTooltip(this.taskTip(task, a.qymc || a.QYMC || ''), {
+            direction: 'top',
+            className: 'cp-tooltip',
+            opacity: 0.95
+          })
+          .addTo(g)
         const center = L.latLngBounds(latlngs).getCenter()
         const icon = L.divIcon({
           className: 'cp-qy-icon',
@@ -688,7 +826,7 @@ export default {
           iconAnchor: [5, 5]
         })
         L.marker([lat, lon], {icon, interactive: true})
-          .bindTooltip(this.areaPointTip(p), {
+          .bindTooltip(this.areaPointTip(p, task), {
             direction: 'top',
             className: 'cp-tooltip'
           })
@@ -1050,6 +1188,82 @@ export default {
     0 1px 3px rgba(0, 0, 0, 0.9),
     0 0 6px rgba(0, 0, 0, 0.6);
   white-space: nowrap;
+}
+
+/* ===== 路线名称（简约） ===== */
+.cp-rt-icon {
+  background: transparent !important;
+  border: none !important;
+}
+.cp-rt {
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 4px rgba(0, 0, 0, 0.7);
+}
+
+/* ===== 任务名称 ===== */
+.cp-task-icon {
+  background: transparent !important;
+  border: none !important;
+}
+.cp-task {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.95),
+    0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+/* ===== 编成编组树 ===== */
+.combat-planning .cp-tree {
+  background: transparent !important;
+  color: #cbd5e1;
+}
+.combat-planning .cp-tree .el-tree-node__content {
+  height: 28px;
+  background: transparent;
+  border-radius: 3px;
+}
+.combat-planning .cp-tree .el-tree-node__content:hover,
+.combat-planning .cp-tree .el-tree-node.is-current > .el-tree-node__content {
+  background: rgba(0, 213, 255, 0.1);
+}
+.combat-planning .cp-tree .el-tree-node__expand-icon {
+  color: #7cecff;
+}
+.combat-planning .cp-tree .el-tree-node__expand-icon.is-leaf {
+  color: #475569;
+}
+.combat-planning .cp-tree .cp-tree-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: #cbd5e1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.combat-planning .cp-tree .cp-tree-ico {
+  color: #38bdf8;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.combat-planning .cp-tree .cp-tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.combat-planning .cp-tree .cp-tree-sub {
+  margin-left: 4px;
+  font-size: 10px;
+  color: #64748b;
+  font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
 }
 
 /* ===== 地图点悬浮提示（路线点/区域点） ===== */

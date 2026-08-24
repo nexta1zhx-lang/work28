@@ -220,23 +220,23 @@ export default {
         attributionControl: false
       })
 
-      // 卫星影像底图（无路网标注；全球 z2~7 + 中国 z8）
+      // 卫星影像底图（无路网标注；全球 z2~7 + 中国 z8~z10）
       // ?v=5：全量换 Esri 源后强制刷新浏览器缓存
       this.tileSat = L.tileLayer('/sat/{z}/{x}/{y}.jpg?v=5', {
         minZoom: 2,
         maxZoom: 18,
-        // 本地瓦片最高到 z7(全球)/z8(中国)，maxNativeZoom 取真实上限，更高级别自动放大避免空白
+        // 本地瓦片最高到 z7(全球)/z10(中国)，maxNativeZoom 取真实上限，更高级别自动放大避免空白
         maxNativeZoom: 7,
         attribution: ''
       })
       this.tileSat.addTo(this.map)
 
-      // 中国及周边 z8 高清叠加层（仅 bbox 55~148E/3~56N 内且 z>=8 时生效，
+      // 中国及周边 z8~z10 高清叠加层（仅 bbox 55~148E/3~56N 内且 z>=8 时生效，
       // 覆盖全球层放大的 z7，其余区域自动回退 z7 放大）
       this.tileSatChina = L.tileLayer('/sat/{z}/{x}/{y}.jpg?v=5', {
         minZoom: 8,
         maxZoom: 18,
-        maxNativeZoom: 8,
+        maxNativeZoom: 10,
         bounds: L.latLngBounds([3, 55], [56, 148]),
         attribution: ''
       })
