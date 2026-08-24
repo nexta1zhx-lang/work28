@@ -2,6 +2,14 @@
  * 静态路由表
  * 从 index.js 中提取的所有业务页面路由
  */
+
+// ===== 智能分析（本地模拟）开关 =====
+// .env 中 VUE_APP_MOCK_ANALYSIS=true 时，任务需求分解下显示「任务网可视化」「事中规划」两个独立模拟页面，
+// 同时隐藏原三个模块（作战筹划信息/数据链保障需求分析/数据链保障方案构建）；
+// false / 未配置时显示原业务页面，并隐藏模拟页面。
+// 通过 meta.isVisible 控制菜单显示，实现「菜单名称与内容同步切换」。改完 .env 需重启 dev server 生效。
+const useMockAnalysis = process.env.VUE_APP_MOCK_ANALYSIS === 'true'
+
 const indexRoutes = [
   {
     path: '/login',
@@ -45,6 +53,7 @@ const staticRoutes = [
       category: '任务需求分解',
       icon: 'lucide:compass',
       parentModule: '任务需求分解',
+      isVisible: !useMockAnalysis,
       requiresAuth: true
     }
   },
@@ -59,6 +68,7 @@ const staticRoutes = [
       category: '任务需求分解',
       icon: 'lucide:shield-check',
       parentModule: '任务需求分解',
+      isVisible: !useMockAnalysis,
       requiresAuth: true
     }
   },
@@ -117,6 +127,37 @@ const staticRoutes = [
       category: '任务需求分解',
       icon: 'lucide:shield-check',
       parentModule: '任务需求分解',
+      isVisible: !useMockAnalysis,
+      requiresAuth: true
+    }
+  },
+
+  // 智能分析（本地模拟）——由 VUE_APP_MOCK_ANALYSIS 开关控制显示（替换上面三个模块的菜单与内容）
+  {
+    path: '/task-network-visualization',
+    name: 'TaskNetworkVisualization',
+    component: () => import('@/views/system-cloud/TaskNetVisualization.vue'),
+    meta: {
+      title: '任务网可视化',
+      subsystem: '体系运营管理',
+      category: '任务需求分解',
+      icon: 'lucide:network',
+      parentModule: '任务需求分解',
+      isVisible: useMockAnalysis,
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/in-process-planning',
+    name: 'InProcessPlanning',
+    component: () => import('@/views/system-cloud/InProcessPlanning.vue'),
+    meta: {
+      title: '事中规划',
+      subsystem: '体系运营管理',
+      category: '任务需求分解',
+      icon: 'lucide:clipboard-list',
+      parentModule: '任务需求分解',
+      isVisible: useMockAnalysis,
       requiresAuth: true
     }
   },
