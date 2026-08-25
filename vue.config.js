@@ -21,13 +21,18 @@ module.exports = {
       '/rest': {
         target: 'http://localhost:8072',
         changeOrigin: true
+      },
+      // 瓦片已从 public/ 移出（避免 webpack 拷贝 5.8 万个文件构建 OOM），
+      // 开发时由 scripts/serve-tiles.js 在 8090 端口提供（npm run serve:tiles），
+      // 这里把 /sat、/sat_gd 转发过去；生产由 Nginx 托管（见 deploy/nginx.conf）。
+      '/sat': {
+        target: 'http://localhost:8090',
+        changeOrigin: true
+      },
+      '/sat_gd': {
+        target: 'http://localhost:8090',
+        changeOrigin: true
       }
-      // 方案B（可选）：瓦片放在独立 Nginx 时，开发环境把 /tiles 代理过去。
-      // 注意：启用后 public/tiles 下的本地瓦片将不再被命中（代理优先）。
-      // '/tiles': {
-      //   target: 'http://localhost:8090', // 你本地 Nginx 瓦片根目录（含 {z}/{x}/{y}.png）
-      //   changeOrigin: true
-      // }
     }
   },
   // 方式 A: 使用 configureWebpack (简单直接)
@@ -39,9 +44,9 @@ module.exports = {
         // 'components': path.resolve(__dirname, 'src/components'),
       }
     },
-    // 忽略瓦片目录监听（sat=Esri / sat_gd=高德，2万+瓦片文件，改动会触发 webpack 无限重编译卡死）
+    // 忽略瓦片目录监听（已移出 public/，位于 tiles-data/；若改动会触发 webpack 无限重编译卡死）
     watchOptions: {
-      ignored: ['**/public/sat*/**', '**/node_modules/**']
+      ignored: ['**/tiles-data/**', '**/public/sat*/**', '**/node_modules/**']
     }
   },
   chainWebpack: config => {

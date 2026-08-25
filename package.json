@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
+    "serve:tiles": "node scripts/serve-tiles.js",
     "build": "vue-cli-service build",
+    "build:full": "npm run build && npm run copy:tiles",
+    "copy:tiles": "node scripts/copy-tiles.js",
     "lint": "vue-cli-service lint"
   },
   "dependencies": {

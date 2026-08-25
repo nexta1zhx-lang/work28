@@ -3,7 +3,8 @@
  * 轻量离线瓦片下载器（中国 + 台海区域）
  * ----------------------------------------
  * 功能：按 bbox(经纬度) + zoom 范围，从任意 XYZ 瓦片源下载 PNG/JPG
- *       到 public/tiles/{z}/{x}/{y}.png，供 Leaflet 本地加载。
+ *       到 tiles-data/{OUT_SUBDIR}/{z}/{x}/{y}.jpg，供 Leaflet 本地加载。
+ *       （瓦片已从 public/ 移出：开发由 serve-tiles.js 提供，生产由 Nginx 托管）
  *
  * 用法：
  *   node scripts/download-tiles.js
@@ -58,7 +59,9 @@ const GLOBAL = process.env.GLOBAL === 'true'
 
 /* ===================== 核心逻辑 ===================== */
 
-const OUT_DIR = path.resolve(__dirname, '..', 'public', OUT_SUBDIR)
+// 瓦片输出目录：已从 public/ 移出（避免 webpack 拷贝导致构建 OOM），
+// 开发用 scripts/serve-tiles.js 提供，生产由 Nginx 托管（见 deploy/nginx.conf）。
+const OUT_DIR = path.resolve(__dirname, '..', 'tiles-data', OUT_SUBDIR)
 
 function toTile(lon, lat, z) {
   const n = Math.pow(2, z)

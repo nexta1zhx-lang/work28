@@ -39,21 +39,26 @@ node scripts/download-tiles.js
 - 关键：选 **XYZ 瓦片导出 / 切片（TMS 需勾选 Y 轴翻转）**，目录结构导出为 `{z}/{x}/{y}.png`
 - 把导出目录拷贝到 `public/tiles/` 下（保持 `{z}/{x}/{y}.png` 结构）
 
-### 方式 C：独立 Nginx 瓦片服务器（瓦片量大、与前端解耦）
+### 方式 C：独立 Nginx 瓦片服务器（推荐，瓦片量大、与前端解耦）
+
+> 当前项目已采用此方式：瓦片不再放 `public/`（避免 copy-webpack-plugin 处理 5.8 万个文件导致构建 OOM），
+> 而是放在项目根目录 `tiles-data/sat|sat_gd/`（已被 gitignore）。
+>
+> - 开发：`npm run serve:tiles`（`scripts/serve-tiles.js`，端口 8090）+ `vue.config.js` 里 `/sat`、`/sat_gd` 代理
+> - 生产：Nginx 托管瓦片数据目录，完整配置见 `deploy/nginx.conf`
 
 ```nginx
-# nginx.conf
+# deploy/nginx.conf（完整版见仓库）
 server {
-  listen 8090;
-  location /tiles/ {
-    alias /data/tiles/;   # 内部结构 /data/tiles/{z}/{x}/{y}.png
-    expires 30d;
-    add_header Cache-Control "public, max-age=2592000";
-  }
+  listen 80;
+  root /data/txyk/dist;            # 前端构建产物
+  location / { try_files $uri $uri/ /index.html; }
+  location /sat/     { alias /data/tiles/sat/;     expires 30d; }
+  location /sat_gd/  { alias /data/tiles/sat_gd/;  expires 30d; }
 }
 ```
 
-前端开发环境把 `vue.config.js` 里注释掉的 `/tiles` 代理打开，指向该 Nginx；生产环境由同一 Nginx 同时托管前端 dist 与 `/tiles`。
+瓦片同步：`rsync -av tiles-data/sat/ /data/tiles/sat/`（方案B：瓦片打进 dist 则 `npm run build:full`）。
 
 ## 四、前端接入
 
@@ -63,7 +68,7 @@ server {
 - 底图：`L.tileLayer('/tiles/{z}/{x}/{y}.png')`，支持「亮色底图 / 暗色底图 / 空白网格」切换
   - 暗色底图：对同一份已下载瓦片加 CSS 滤镜 `invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)`，**无需重复下载**，纯离线可用
 - 点位：`rest/ptxx/page` 分页拉取（每页 1000，循环至 total），字段 `PTJD`(经度)/`PTWD`(纬度)
-- 底图：固定为**卫星影像**（高德纯卫星瓦片 `public/sat/{z}/{x}/{y}.jpg`，无路网标注，全球 z3~7 + 中国 z8，123MB）
+- 底图：固定为**卫星影像**（高德纯卫星瓦片 `tiles-data/sat/{z}/{x}/{y}.jpg`，无路网标注，全球 z3~7 + 中国 z8，123MB；开发由 `serve-tiles.js` 提供，生产由 Nginx 托管，URL 仍为 `/sat/{z}/{x}/{y}.jpg`）
 - 地图组件：仅卫星底图 + 可配置叠加图层（右上「图层配置」抽屉，独立开关）：
   - **国家边界**（粗/细两级：低层级 `world-countries.geojson` 180 国，高层级 `world-countries-detail.geojson` 242 国，白色细线，按缩放切换）
   - **海岸线高亮**（`coastline.geojson`，ne_50m **1428 段**，亮青色 `#00d5ff`）
